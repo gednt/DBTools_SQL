@@ -353,7 +353,208 @@ namespace DBTools_Utilities
         }
         #endregion
 
+        #region métodos helpers de queries de banco de dados
+        //MODULOS DE MANIPULAÇAO DE DADOS
+        /// <summary>
+        /// Returns a string based on the parameters given<br/>
+        /// </summary>
+        /// <param name="_fields"></param>
+        /// <param name="_table"></param>
+        /// <param name="_conditions"></param>
+        /// <returns></returns>
+        public static string Select_Query(String _fields, String _table, String _conditions)
+        {
 
+            String query = "";
+            if (_conditions != "")
+            {
+                query = String.Format("SELECT {0} FROM {1} WHERE {2}", _fields, _table, _conditions);
+            }
+            else
+            {
+                query = String.Format("SELECT {0} FROM {1}", _fields, _table);
+            }
+
+            return query;
+
+
+        }
+        /// <summary>
+        /// Returns an insert query based on the parameters given<br/>
+        /// </summary>
+        /// <param name="_fields"></param>
+        /// <param name="_table"></param>
+        /// <param name="_conditions"></param>
+        /// <returns></returns>
+        public static string Insert_Query(String[] _fields, String _table, String[] _values)
+        {
+            String fields = "", values = "";
+            //MONTA OS CAMPOS
+            String query = "INSERT INTO " + _table + "(";
+
+            for (int cont = 0; cont < _fields.Length; cont++)
+            {
+                fields += _fields[cont] + ",";
+            }
+            fields = fields.Remove(fields.Length - 1, 1);
+            fields += ") VALUES(";
+            //VALORES
+            for (int cont = 0; cont < _fields.Length; cont++)
+            {
+                double numero;
+                if (double.TryParse(_values[cont], out numero) == false)
+                {
+                    if (values != "''" && _values[cont] != null)
+                    {
+                        if (_values[cont].Length > 0)
+                        {
+                            if (_values[cont].Substring(0, 1) != "'")
+                            {
+                                values += "'" + _values[cont] + "',";
+                            }
+                            else
+                            {
+                                values += _values[cont] + ",";
+                            }
+
+                        }
+                        else
+                        {
+                            if (_values[cont].Length == 0)
+                                values += "null,";
+                        }
+
+                    }
+                    else
+                    {
+                        if (_values[cont].Length > 0)
+                        {
+                            if (_values[cont].Substring(0, 1) != "'")
+                            {
+                                values += _values[cont];
+                            }
+
+                        }
+                        else
+                        {
+                            values += "null,";
+                        }
+                    }
+
+                }
+                else
+                {
+                    values += _values[cont].Replace(",", ".") + ",";
+                }
+
+            }
+            values = values.Remove(values.Length - 1, 1);
+
+            //FINALIZA A QUERY
+            query += fields;
+            query += values;
+
+            query += ")";
+            //RETORNA A QUERY
+            return query;
+
+
+        }
+        /// <summary>
+        /// Returns an Update query
+        /// </summary>
+        /// <param name="_fields"></param>
+        /// <param name="_table"></param>
+        /// <param name="_values"></param>
+        /// <returns></returns>
+        public static string Update_Query(String[] _fields, String _table, String[] _values, String condition = "")
+        {
+            String fields = "", values = "";
+            //MONTA OS CAMPOS
+            String query = "UPDATE  " + _table + " SET ";
+            //VALORES
+            for (int cont = 0; cont < _fields.Length; cont++)
+            {
+                double numero;
+                if (double.TryParse(_values[cont], out numero) == false)
+                {
+                    if (values != "''" && _values[cont] != null)
+                    {
+                        if (_values[cont].Length > 0)
+                        {
+                            if (_values[cont].Substring(0, 1) != "'")
+                            {
+                                _values[cont] = "'" + _values[cont] + "'";
+                            }
+                            else
+                            {
+                                _values[cont] = _values[cont] + "";
+                            }
+
+                        }
+                        else
+                        {
+                            if (_values[cont].Length == 0)
+                                _values[cont] = "null";
+                        }
+
+                    }
+                    else
+                    {
+                        if (_values[cont].Length > 0)
+                        {
+                            if (_values[cont].Substring(0, 1) != "'")
+                            {
+                                _values[cont] = _values[cont];
+                            }
+
+                        }
+                        else
+                        {
+                            _values[cont] = "null";
+                        }
+                    }
+
+                }
+                else
+                {
+                    _values[cont] = _values[cont].Replace(",", ".");
+                }
+
+            }
+            for (int cont = 0; cont < _fields.Length; cont++)
+            {
+                fields += _fields[cont] + "=" + _values[cont] + ",";
+            }
+            //fields = fields.Remove(fields.Length - 1, 1);
+            fields = fields.Substring(0, fields.Length - 1);
+            fields += " WHERE " + condition;
+            query += fields;
+
+            //Retorna a query
+            return query;
+
+
+        }
+        /// <summary>
+        /// Returns a Delete query<br/>
+        /// For security reasons, the use of a condition is mandatory.
+        /// </summary>
+        /// <param name="_table"></param>
+        /// <param name="condition"></param>
+        /// <returns></returns>
+        public static string Delete_Query(String _table, String condition)
+        {
+
+            //MONTA OS CAMPOS
+            String query = "DELETE  FROM " + _table + " WHERE " + condition;
+            //RETORNA A QUERY
+
+            return query;
+
+
+        }
+        #endregion
 
     }
 }
