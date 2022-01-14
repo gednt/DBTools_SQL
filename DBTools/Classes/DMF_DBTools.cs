@@ -166,6 +166,10 @@ namespace DBToolsDll
 
             get
             {
+                if (_connectionString != null)
+                {
+                    return _connectionString;
+                }
                 if (port != null)
                 {
                     _connectionString = String.Format("Server={0},{1};Database={2};User Id={3}Password={4};", host, port, database, uid, password);
@@ -177,6 +181,11 @@ namespace DBToolsDll
 
                 return _connectionString;
 
+            }
+
+            set
+            {
+                _connectionString = value;
             }
 
         }
