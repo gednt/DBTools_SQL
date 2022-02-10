@@ -30,6 +30,7 @@ namespace DBTools.Controller
 
         public void SqlExecuteQuery(String query = "")
         {
+            DBTools.Query = query;
             DBTools.SqlExecuteQuery();
         }
     }
