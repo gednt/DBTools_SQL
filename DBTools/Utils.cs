@@ -205,10 +205,15 @@ namespace DBTools_Utilities
             }
 
             DataView dv = new DataView();
-            dv = RetrieveDataSql();
-            
-            // Clear parameters after use
-            SqlParameters = null;
+            try
+            {
+                dv = RetrieveDataSql();
+            }
+            finally
+            {
+                // Clear parameters after use
+                SqlParameters = null;
+            }
 
             String[] arrayQuery = new String[dv.Count];
             for (int cont = 0; cont < dv.Count; cont++)
@@ -282,11 +287,6 @@ namespace DBTools_Utilities
                 SqlParameters = null;
             }
 
-            String[] arrayQuery = new String[dv.Count];
-            for (int cont = 0; cont < dv.Count; cont++)
-            {
-                arrayQuery[cont] = dv[cont][0].ToString();
-            }
             return dv;
         }
         /// <summary>
