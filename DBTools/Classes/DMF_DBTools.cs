@@ -172,11 +172,11 @@ namespace DBToolsDll
                 }
                 if (port != null)
                 {
-                    _connectionString = String.Format("Server={0},{1};Database={2};User Id={3}Password={4};", host, port, database, uid, password);
+                    _connectionString = String.Format("Server={0},{1};Database={2};User Id={3};Password={4};", host, port, database, uid, password);
                 }
                 else
                 {
-                    _connectionString = String.Format("Server={0};Database={2};User Id={3};Password={4};", host, port, database, uid, password);
+                    _connectionString = String.Format("Server={0};Database={1};User Id={2};Password={3};", host, database, uid, password);
                 }
 
                 return _connectionString;
