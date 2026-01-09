@@ -25,6 +25,8 @@ namespace DBTools_Utilities
         #region Helper methods for validation
         /// <summary>
         /// Static regex for validating identifiers (compiled once for performance).
+        /// Allows: alphanumeric, underscore, dot (schema.table), brackets ([table]), 
+        /// comma and space (for field lists like "id, name"), and asterisk (for SELECT *)
         /// </summary>
         private static readonly System.Text.RegularExpressions.Regex IdentifierRegex = 
             new System.Text.RegularExpressions.Regex(@"^[\w\.\[\]\,\s\*]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
@@ -502,7 +504,7 @@ namespace DBTools_Utilities
                     {
                         values += "null,";
                     }
-                    else if (_values[cont].Substring(0, 1) == "'")
+                    else if (_values[cont].Substring(0, 1) == "'" && _values[cont].Length >= 2)
                     {
                         // Value already has quotes, but still escape internal quotes
                         string escapedValue = _values[cont].Substring(1, _values[cont].Length - 2).Replace("'", "''");
@@ -577,7 +579,7 @@ namespace DBTools_Utilities
                     {
                         _values[cont] = "null";
                     }
-                    else if (_values[cont].Substring(0, 1) == "'")
+                    else if (_values[cont].Substring(0, 1) == "'" && _values[cont].Length >= 2)
                     {
                         // Value already has quotes, but still escape internal quotes
                         string escapedValue = _values[cont].Substring(1, _values[cont].Length - 2).Replace("'", "''");
