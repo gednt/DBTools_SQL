@@ -12,7 +12,9 @@ namespace DBTools.Controller
     /// Generic controller for LINQ-style database manipulation compatible with any model type.
     /// Provides Insert, Update, Delete, and Select operations similar to Entity Framework.
     /// </summary>
-    /// <typeparam name="TModel">The model type that represents a database table record</typeparam>
+    /// <typeparam name="TModel">The model type that represents a database table record. 
+    /// Must be a reference type (class) with a parameterless constructor. 
+    /// Model properties should be public with getters and setters, and property names should match database column names.</typeparam>
     public class UtilsController<TModel> where TModel : class, new()
     {
         private readonly DBTools_Utilities.Utils _utils;
@@ -270,19 +272,24 @@ namespace DBTools.Controller
                         }
                         catch (InvalidCastException)
                         {
-                            // Skip properties that can't be cast to the target type
+                            // Skip properties that can't be cast to the target type.
+                            // This is expected behavior when database columns don't map perfectly to model properties.
+                            // Users should ensure property types match column types for critical fields.
                         }
                         catch (FormatException)
                         {
-                            // Skip properties with invalid format
+                            // Skip properties with invalid format.
+                            // This can occur when string values can't be parsed into numeric or date types.
                         }
                         catch (OverflowException)
                         {
-                            // Skip properties where the value is outside the range of the target type
+                            // Skip properties where the value is outside the range of the target type.
+                            // For example, a BIGINT value that's too large for an Int32 property.
                         }
                         catch (ArgumentException)
                         {
-                            // Skip properties with invalid arguments during conversion
+                            // Skip properties with invalid arguments during conversion.
+                            // This can occur with incompatible type conversions.
                         }
                     }
                 }
