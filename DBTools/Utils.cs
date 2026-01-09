@@ -24,24 +24,22 @@ namespace DBTools_Utilities
         }
         #region Helper methods for validation
         /// <summary>
+        /// Static regex for validating identifiers (compiled once for performance).
+        /// </summary>
+        private static readonly System.Text.RegularExpressions.Regex IdentifierRegex = 
+            new System.Text.RegularExpressions.Regex(@"^[\w\.\[\]\,\s\*]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        /// <summary>
         /// Validates an identifier (table name, column name) to prevent SQL injection.
         /// Only allows alphanumeric characters, underscores, dots, brackets, and spaces.
         /// </summary>
-        private bool IsValidIdentifier(string identifier)
+        private static bool IsValidIdentifier(string identifier)
         {
             if (string.IsNullOrWhiteSpace(identifier))
                 return false;
             
             // Allow alphanumeric, underscore, dot (for schema.table), brackets (for [table]), and comma/space for field lists
-            return System.Text.RegularExpressions.Regex.IsMatch(identifier, @"^[\w\.\[\]\,\s\*]+$");
-        }
-
-        /// <summary>
-        /// Validates multiple identifiers (e.g., field lists).
-        /// </summary>
-        private bool AreValidIdentifiers(string identifiers)
-        {
-            return IsValidIdentifier(identifiers);
+            return IdentifierRegex.IsMatch(identifier);
         }
         #endregion
 
@@ -239,7 +237,7 @@ namespace DBTools_Utilities
         public DataView Select(String _fields, String _table, String _conditions)
         {
             // Validate identifiers to prevent SQL injection
-            if (!AreValidIdentifiers(_fields))
+            if (!IsValidIdentifier(_fields))
                 throw new ArgumentException("Invalid field names. Only alphanumeric characters, underscores, dots, brackets, commas, and spaces are allowed.", nameof(_fields));
             
             if (!IsValidIdentifier(_table))
@@ -263,9 +261,9 @@ namespace DBTools_Utilities
         /// Inserts the data into the database based on the parameters given<br/>
         /// This class can and should be used with the <see cref="QueryBuilder(object)">QueryBuilder Command</see>
         /// </summary>
-        /// <param name="_fields"></param>
-        /// <param name="_table"></param>
-        /// <param name="_values"></param>
+        /// <param name="_fields">Array of field names to insert into</param>
+        /// <param name="_table">Table name</param>
+        /// <param name="_values">Array of values to insert corresponding to the fields</param>
         /// <returns></returns>
         public bool Insert(String[] _fields, String _table, String[] _values)
         {
@@ -432,10 +430,10 @@ namespace DBTools_Utilities
         public static string Select_Query(String _fields, String _table, String _conditions)
         {
             // Validate identifiers to prevent SQL injection
-            if (!IsValidIdentifierStatic(_fields))
+            if (!IsValidIdentifier(_fields))
                 throw new ArgumentException("Invalid field names. Only alphanumeric characters, underscores, dots, brackets, commas, and spaces are allowed.", nameof(_fields));
             
-            if (!IsValidIdentifierStatic(_table))
+            if (!IsValidIdentifier(_table))
                 throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
             String query = "";
@@ -452,36 +450,24 @@ namespace DBTools_Utilities
 
 
         }
-        
-        /// <summary>
-        /// Static helper method to validate identifiers.
-        /// </summary>
-        private static bool IsValidIdentifierStatic(string identifier)
-        {
-            if (string.IsNullOrWhiteSpace(identifier))
-                return false;
-            
-            // Allow alphanumeric, underscore, dot (for schema.table), brackets (for [table]), and comma/space for field lists
-            return System.Text.RegularExpressions.Regex.IsMatch(identifier, @"^[\w\.\[\]\,\s\*]+$");
-        }
         /// <summary>
         /// Returns an insert query based on the parameters given<br/>
         /// Note: This method returns a query string with escaped values. For better security, use the non-static Insert method with parameterized queries.
         /// </summary>
-        /// <param name="_fields"></param>
-        /// <param name="_table"></param>
-        /// <param name="_values"></param>
+        /// <param name="_fields">Array of field names to insert into</param>
+        /// <param name="_table">Table name</param>
+        /// <param name="_values">Array of values to insert corresponding to the fields</param>
         /// <returns></returns>
         public static string Insert_Query(String[] _fields, String _table, String[] _values)
         {
             // Validate table name to prevent SQL injection
-            if (!IsValidIdentifierStatic(_table))
+            if (!IsValidIdentifier(_table))
                 throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
             // Validate field names to prevent SQL injection
             foreach (var field in _fields)
             {
-                if (!IsValidIdentifierStatic(field))
+                if (!IsValidIdentifier(field))
                     throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
             }
 
@@ -501,55 +487,38 @@ namespace DBTools_Utilities
             // Build values list with proper escaping
             for (int cont = 0; cont < _fields.Length; cont++)
             {
+                // Check if value is null first
+                if (_values[cont] == null)
+                {
+                    values += "null,";
+                    continue;
+                }
+
                 double numero;
                 if (double.TryParse(_values[cont], out numero) == false)
                 {
-                    if (values != "''" && _values[cont] != null)
+                    // Non-numeric value - needs quotes and escaping
+                    if (_values[cont].Length == 0)
                     {
-                        if (_values[cont].Length > 0)
-                        {
-                            if (_values[cont].Substring(0, 1) != "'")
-                            {
-                                // Escape single quotes to prevent SQL injection
-                                values += "'" + _values[cont].Replace("'", "''") + "',";
-                            }
-                            else
-                            {
-                                // Value already has quotes, but still escape internal quotes
-                                string escapedValue = _values[cont].Substring(1, _values[cont].Length - 2).Replace("'", "''");
-                                values += "'" + escapedValue + "',";
-                            }
-
-                        }
-                        else
-                        {
-                            if (_values[cont].Length == 0)
-                                values += "null,";
-                        }
-
+                        values += "null,";
+                    }
+                    else if (_values[cont].Substring(0, 1) == "'")
+                    {
+                        // Value already has quotes, but still escape internal quotes
+                        string escapedValue = _values[cont].Substring(1, _values[cont].Length - 2).Replace("'", "''");
+                        values += "'" + escapedValue + "',";
                     }
                     else
                     {
-                        if (_values[cont] != null && _values[cont].Length > 0)
-                        {
-                            if (_values[cont].Substring(0, 1) != "'")
-                            {
-                                values += _values[cont];
-                            }
-
-                        }
-                        else
-                        {
-                            values += "null,";
-                        }
+                        // Escape single quotes to prevent SQL injection
+                        values += "'" + _values[cont].Replace("'", "''") + "',";
                     }
-
                 }
                 else
                 {
+                    // Numeric value - use as is with decimal point
                     values += _values[cont].Replace(",", ".") + ",";
                 }
-
             }
             values = values.Remove(values.Length - 1, 1);
 
@@ -564,20 +533,21 @@ namespace DBTools_Utilities
         /// Returns an Update query
         /// Note: This method returns a query string with escaped values. For better security, use the non-static Update method with parameterized queries.
         /// </summary>
-        /// <param name="_fields"></param>
-        /// <param name="_table"></param>
-        /// <param name="_values"></param>
+        /// <param name="_fields">Array of field names to update</param>
+        /// <param name="_table">Table name</param>
+        /// <param name="_values">Array of values to update corresponding to the fields</param>
+        /// <param name="condition">WHERE clause condition (mandatory for security)</param>
         /// <returns></returns>
         public static string Update_Query(String[] _fields, String _table, String[] _values, String condition = "")
         {
             // Validate table name to prevent SQL injection
-            if (!IsValidIdentifierStatic(_table))
+            if (!IsValidIdentifier(_table))
                 throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
             // Validate field names to prevent SQL injection
             foreach (var field in _fields)
             {
-                if (!IsValidIdentifierStatic(field))
+                if (!IsValidIdentifier(field))
                     throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
             }
 
@@ -592,44 +562,38 @@ namespace DBTools_Utilities
             // Process values with proper escaping
             for (int cont = 0; cont < _fields.Length; cont++)
             {
+                // Check if value is null first
+                if (_values[cont] == null)
+                {
+                    _values[cont] = "null";
+                    continue;
+                }
+
                 double numero;
                 if (double.TryParse(_values[cont], out numero) == false)
                 {
-                    if (_values[cont] != null)
-                    {
-                        if (_values[cont].Length > 0)
-                        {
-                            if (_values[cont].Substring(0, 1) != "'")
-                            {
-                                // Escape single quotes to prevent SQL injection
-                                _values[cont] = "'" + _values[cont].Replace("'", "''") + "'";
-                            }
-                            else
-                            {
-                                // Value already has quotes, but still escape internal quotes
-                                string escapedValue = _values[cont].Substring(1, _values[cont].Length - 2).Replace("'", "''");
-                                _values[cont] = "'" + escapedValue + "'";
-                            }
-
-                        }
-                        else
-                        {
-                            if (_values[cont].Length == 0)
-                                _values[cont] = "null";
-                        }
-
-                    }
-                    else
+                    // Non-numeric value - needs quotes and escaping
+                    if (_values[cont].Length == 0)
                     {
                         _values[cont] = "null";
                     }
-
+                    else if (_values[cont].Substring(0, 1) == "'")
+                    {
+                        // Value already has quotes, but still escape internal quotes
+                        string escapedValue = _values[cont].Substring(1, _values[cont].Length - 2).Replace("'", "''");
+                        _values[cont] = "'" + escapedValue + "'";
+                    }
+                    else
+                    {
+                        // Escape single quotes to prevent SQL injection
+                        _values[cont] = "'" + _values[cont].Replace("'", "''") + "'";
+                    }
                 }
                 else
                 {
+                    // Numeric value - use as is with decimal point
                     _values[cont] = _values[cont].Replace(",", ".");
                 }
-
             }
             
             // Build SET clause
@@ -656,7 +620,7 @@ namespace DBTools_Utilities
         public static string Delete_Query(String _table, String condition)
         {
             // Validate table name to prevent SQL injection
-            if (!IsValidIdentifierStatic(_table))
+            if (!IsValidIdentifier(_table))
                 throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
             if (string.IsNullOrEmpty(condition))
