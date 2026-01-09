@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SqlClient;
 namespace DBTools_Utilities
 {
     /// <summary>
@@ -21,6 +22,29 @@ namespace DBTools_Utilities
         {
 
         }
+        #region Helper methods for validation
+        /// <summary>
+        /// Validates an identifier (table name, column name) to prevent SQL injection.
+        /// Only allows alphanumeric characters, underscores, dots, brackets, and spaces.
+        /// </summary>
+        private bool IsValidIdentifier(string identifier)
+        {
+            if (string.IsNullOrWhiteSpace(identifier))
+                return false;
+            
+            // Allow alphanumeric, underscore, dot (for schema.table), brackets (for [table]), and comma/space for field lists
+            return System.Text.RegularExpressions.Regex.IsMatch(identifier, @"^[\w\.\[\]\,\s\*]+$");
+        }
+
+        /// <summary>
+        /// Validates multiple identifiers (e.g., field lists).
+        /// </summary>
+        private bool AreValidIdentifiers(string identifiers)
+        {
+            return IsValidIdentifier(identifiers);
+        }
+        #endregion
+
         #region query utilities
         /// <summary>
         /// Returns a list of a representation of any given object to be used into the Insert and select clauses of this library.
@@ -214,6 +238,12 @@ namespace DBTools_Utilities
         /// <returns></returns>
         public DataView Select(String _fields, String _table, String _conditions)
         {
+            // Validate identifiers to prevent SQL injection
+            if (!AreValidIdentifiers(_fields))
+                throw new ArgumentException("Invalid field names. Only alphanumeric characters, underscores, dots, brackets, commas, and spaces are allowed.", nameof(_fields));
+            
+            if (!IsValidIdentifier(_table))
+                throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
             String query = "";
             if (_conditions != "")
@@ -235,43 +265,48 @@ namespace DBTools_Utilities
         /// </summary>
         /// <param name="_fields"></param>
         /// <param name="_table"></param>
-        /// <param name="_conditions"></param>
+        /// <param name="_values"></param>
         /// <returns></returns>
         public bool Insert(String[] _fields, String _table, String[] _values)
         {
-            String fields = "", values = "";
-            //MONTA OS CAMPOS
-            String query = "INSERT INTO " + _table + "(";
+            // Validate table name to prevent SQL injection
+            if (!IsValidIdentifier(_table))
+                throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
+            // Validate field names to prevent SQL injection
+            foreach (var field in _fields)
+            {
+                if (!IsValidIdentifier(field))
+                    throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
+            }
+
+            if (_fields.Length != _values.Length)
+                throw new ArgumentException("Field and value arrays must have the same length.");
+
+            String fields = "";
+            String paramPlaceholders = "";
+            List<SqlParameter> parameters = new List<SqlParameter>();
+
+            // Build field list and parameter placeholders
             for (int cont = 0; cont < _fields.Length; cont++)
             {
                 fields += _fields[cont] + ",";
+                string paramName = "@param" + cont;
+                paramPlaceholders += paramName + ",";
+                parameters.Add(new SqlParameter(paramName, _values[cont] ?? (object)DBNull.Value));
             }
+            
             fields = fields.Remove(fields.Length - 1, 1);
-            fields += ") VALUES(";
-            //VALORES
-            for (int cont = 0; cont < _fields.Length; cont++)
-            {
-                int numero;
-                if (int.TryParse(_values[cont], out numero) == false)
-                {
-                    values += "'" + _values[cont] + "',";
-                }
-                else
-                {
-                    values += _values[cont] + ",";
-                }
+            paramPlaceholders = paramPlaceholders.Remove(paramPlaceholders.Length - 1, 1);
 
-            }
-            values = values.Remove(values.Length - 1, 1);
-
-            //FINALIZA A QUERY
-            query += fields;
-            query += values;
-
-            query += ")";
-            //EXECUTA A QUERY
+            // Build the query
+            String query = String.Format("INSERT INTO {0}({1}) VALUES({2})", _table, fields, paramPlaceholders);
+            
+            // Set parameters and execute query
+            SqlParameters = parameters;
             ExecuteQuery(query);
+            SqlParameters = null; // Clear parameters after use
+            
             if (Error != null)
             {
                 return false;
@@ -289,20 +324,44 @@ namespace DBTools_Utilities
         /// <returns></returns>
         public bool Update(String[] _fields, String _table, String[] _values, String condition = "")
         {
-            String fields = "", values = "";
-            //MONTA OS CAMPOS
-            String query = "UPDATE  " + _table + " SET ";
+            // Validate table name to prevent SQL injection
+            if (!IsValidIdentifier(_table))
+                throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
+            // Validate field names to prevent SQL injection
+            foreach (var field in _fields)
+            {
+                if (!IsValidIdentifier(field))
+                    throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
+            }
+
+            if (_fields.Length != _values.Length)
+                throw new ArgumentException("Field and value arrays must have the same length.");
+
+            if (string.IsNullOrEmpty(condition))
+                throw new ArgumentException("Condition is required for UPDATE operations for security reasons.", nameof(condition));
+
+            String setClause = "";
+            List<SqlParameter> parameters = new List<SqlParameter>();
+
+            // Build SET clause with parameters
             for (int cont = 0; cont < _fields.Length; cont++)
             {
-                fields += _fields[cont] + "=" + _values[cont] + ",";
+                string paramName = "@param" + cont;
+                setClause += _fields[cont] + "=" + paramName + ",";
+                parameters.Add(new SqlParameter(paramName, _values[cont] ?? (object)DBNull.Value));
             }
-            //fields = fields.Remove(fields.Length - 1, 1);
-            fields = fields.Substring(0, fields.Length - 1);
-            fields += " WHERE " + condition;
-            query += fields;
-            //EXECUTA A QUERY
+            
+            setClause = setClause.Substring(0, setClause.Length - 1);
+
+            // Build the query
+            String query = String.Format("UPDATE {0} SET {1} WHERE {2}", _table, setClause, condition);
+            
+            // Set parameters and execute query
+            SqlParameters = parameters;
             ExecuteQuery(query);
+            SqlParameters = null; // Clear parameters after use
+            
             if (Error != null)
             {
                 return false;
@@ -320,11 +379,19 @@ namespace DBTools_Utilities
         /// <returns></returns>
         public bool Delete(String _table, String condition)
         {
+            // Validate table name to prevent SQL injection
+            if (!IsValidIdentifier(_table))
+                throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
-            //MONTA OS CAMPOS
-            String query = "DELETE  FROM " + _table + " WHERE " + condition;
-            //EXECUTA A QUERY
+            if (string.IsNullOrEmpty(condition))
+                throw new ArgumentException("Condition is required for DELETE operations for security reasons.", nameof(condition));
+
+            // Build the query
+            String query = String.Format("DELETE FROM {0} WHERE {1}", _table, condition);
+            
+            // Execute query
             ExecuteQuery(query);
+            
             if (Error != null)
             {
                 return false;
@@ -364,6 +431,12 @@ namespace DBTools_Utilities
         /// <returns></returns>
         public static string Select_Query(String _fields, String _table, String _conditions)
         {
+            // Validate identifiers to prevent SQL injection
+            if (!IsValidIdentifierStatic(_fields))
+                throw new ArgumentException("Invalid field names. Only alphanumeric characters, underscores, dots, brackets, commas, and spaces are allowed.", nameof(_fields));
+            
+            if (!IsValidIdentifierStatic(_table))
+                throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
             String query = "";
             if (_conditions != "")
@@ -379,26 +452,53 @@ namespace DBTools_Utilities
 
 
         }
+        
+        /// <summary>
+        /// Static helper method to validate identifiers.
+        /// </summary>
+        private static bool IsValidIdentifierStatic(string identifier)
+        {
+            if (string.IsNullOrWhiteSpace(identifier))
+                return false;
+            
+            // Allow alphanumeric, underscore, dot (for schema.table), brackets (for [table]), and comma/space for field lists
+            return System.Text.RegularExpressions.Regex.IsMatch(identifier, @"^[\w\.\[\]\,\s\*]+$");
+        }
         /// <summary>
         /// Returns an insert query based on the parameters given<br/>
+        /// Note: This method returns a query string with escaped values. For better security, use the non-static Insert method with parameterized queries.
         /// </summary>
         /// <param name="_fields"></param>
         /// <param name="_table"></param>
-        /// <param name="_conditions"></param>
+        /// <param name="_values"></param>
         /// <returns></returns>
         public static string Insert_Query(String[] _fields, String _table, String[] _values)
         {
-            String fields = "", values = "";
-            //MONTA OS CAMPOS
-            String query = "INSERT INTO " + _table + "(";
+            // Validate table name to prevent SQL injection
+            if (!IsValidIdentifierStatic(_table))
+                throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
+            // Validate field names to prevent SQL injection
+            foreach (var field in _fields)
+            {
+                if (!IsValidIdentifierStatic(field))
+                    throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
+            }
+
+            if (_fields.Length != _values.Length)
+                throw new ArgumentException("Field and value arrays must have the same length.");
+
+            String fields = "";
+            String values = "";
+
+            // Build field list
             for (int cont = 0; cont < _fields.Length; cont++)
             {
                 fields += _fields[cont] + ",";
             }
             fields = fields.Remove(fields.Length - 1, 1);
-            fields += ") VALUES(";
-            //VALORES
+
+            // Build values list with proper escaping
             for (int cont = 0; cont < _fields.Length; cont++)
             {
                 double numero;
@@ -410,11 +510,14 @@ namespace DBTools_Utilities
                         {
                             if (_values[cont].Substring(0, 1) != "'")
                             {
-                                values += "'" + _values[cont] + "',";
+                                // Escape single quotes to prevent SQL injection
+                                values += "'" + _values[cont].Replace("'", "''") + "',";
                             }
                             else
                             {
-                                values += _values[cont] + ",";
+                                // Value already has quotes, but still escape internal quotes
+                                string escapedValue = _values[cont].Substring(1, _values[cont].Length - 2).Replace("'", "''");
+                                values += "'" + escapedValue + "',";
                             }
 
                         }
@@ -427,7 +530,7 @@ namespace DBTools_Utilities
                     }
                     else
                     {
-                        if (_values[cont].Length > 0)
+                        if (_values[cont] != null && _values[cont].Length > 0)
                         {
                             if (_values[cont].Substring(0, 1) != "'")
                             {
@@ -450,18 +553,16 @@ namespace DBTools_Utilities
             }
             values = values.Remove(values.Length - 1, 1);
 
-            //FINALIZA A QUERY
-            query += fields;
-            query += values;
-
-            query += ")";
-            //RETORNA A QUERY
+            // Build the query
+            String query = String.Format("INSERT INTO {0}({1}) VALUES({2})", _table, fields, values);
+            
             return query;
 
 
         }
         /// <summary>
         /// Returns an Update query
+        /// Note: This method returns a query string with escaped values. For better security, use the non-static Update method with parameterized queries.
         /// </summary>
         /// <param name="_fields"></param>
         /// <param name="_table"></param>
@@ -469,26 +570,45 @@ namespace DBTools_Utilities
         /// <returns></returns>
         public static string Update_Query(String[] _fields, String _table, String[] _values, String condition = "")
         {
-            String fields = "", values = "";
-            //MONTA OS CAMPOS
-            String query = "UPDATE  " + _table + " SET ";
-            //VALORES
+            // Validate table name to prevent SQL injection
+            if (!IsValidIdentifierStatic(_table))
+                throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
+
+            // Validate field names to prevent SQL injection
+            foreach (var field in _fields)
+            {
+                if (!IsValidIdentifierStatic(field))
+                    throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
+            }
+
+            if (_fields.Length != _values.Length)
+                throw new ArgumentException("Field and value arrays must have the same length.");
+
+            if (string.IsNullOrEmpty(condition))
+                throw new ArgumentException("Condition is required for UPDATE operations for security reasons.", nameof(condition));
+
+            String fields = "";
+
+            // Process values with proper escaping
             for (int cont = 0; cont < _fields.Length; cont++)
             {
                 double numero;
                 if (double.TryParse(_values[cont], out numero) == false)
                 {
-                    if (values != "''" && _values[cont] != null)
+                    if (_values[cont] != null)
                     {
                         if (_values[cont].Length > 0)
                         {
                             if (_values[cont].Substring(0, 1) != "'")
                             {
-                                _values[cont] = "'" + _values[cont] + "'";
+                                // Escape single quotes to prevent SQL injection
+                                _values[cont] = "'" + _values[cont].Replace("'", "''") + "'";
                             }
                             else
                             {
-                                _values[cont] = _values[cont] + "";
+                                // Value already has quotes, but still escape internal quotes
+                                string escapedValue = _values[cont].Substring(1, _values[cont].Length - 2).Replace("'", "''");
+                                _values[cont] = "'" + escapedValue + "'";
                             }
 
                         }
@@ -501,18 +621,7 @@ namespace DBTools_Utilities
                     }
                     else
                     {
-                        if (_values[cont].Length > 0)
-                        {
-                            if (_values[cont].Substring(0, 1) != "'")
-                            {
-                                _values[cont] = _values[cont];
-                            }
-
-                        }
-                        else
-                        {
-                            _values[cont] = "null";
-                        }
+                        _values[cont] = "null";
                     }
 
                 }
@@ -522,16 +631,17 @@ namespace DBTools_Utilities
                 }
 
             }
+            
+            // Build SET clause
             for (int cont = 0; cont < _fields.Length; cont++)
             {
                 fields += _fields[cont] + "=" + _values[cont] + ",";
             }
-            //fields = fields.Remove(fields.Length - 1, 1);
             fields = fields.Substring(0, fields.Length - 1);
-            fields += " WHERE " + condition;
-            query += fields;
 
-            //Retorna a query
+            // Build the query
+            String query = String.Format("UPDATE {0} SET {1} WHERE {2}", _table, fields, condition);
+
             return query;
 
 
@@ -545,10 +655,15 @@ namespace DBTools_Utilities
         /// <returns></returns>
         public static string Delete_Query(String _table, String condition)
         {
+            // Validate table name to prevent SQL injection
+            if (!IsValidIdentifierStatic(_table))
+                throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
-            //MONTA OS CAMPOS
-            String query = "DELETE  FROM " + _table + " WHERE " + condition;
-            //RETORNA A QUERY
+            if (string.IsNullOrEmpty(condition))
+                throw new ArgumentException("Condition is required for DELETE operations for security reasons.", nameof(condition));
+
+            // Build the query
+            String query = String.Format("DELETE FROM {0} WHERE {1}", _table, condition);
 
             return query;
 
