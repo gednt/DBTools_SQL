@@ -5,7 +5,7 @@ VisualStudioVersion = 16.0.30709.132
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DBTools", "DBTools\DBTools.csproj", "{39D6736A-81A5-44F4-8B90-56BBF9A4FDB8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestDBTools", "..\TestDBTools\TestDBTools.csproj", "{E00AF64F-7299-4646-8BE6-BDB156CD52E9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestDBTools", "TestDBTools\TestDBTools.csproj", "{E00AF64F-7299-4646-8BE6-BDB156CD52E9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

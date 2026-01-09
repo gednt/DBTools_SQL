@@ -364,3 +364,4 @@ FodyWeavers.xsd
 
 # NuGet command line tool
 .nuget/
+nuget.exe
