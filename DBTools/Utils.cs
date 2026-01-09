@@ -236,6 +236,7 @@ namespace DBTools_Utilities
         /// <param name="_table"></param>
         /// <param name="_conditions"></param>
         /// <returns></returns>
+        [Obsolete("This method is deprecated. Use the overload with parameterized conditions for better security.", false)]
         public DataView Select(String _fields, String _table, String _conditions)
         {
             // Validate identifiers to prevent SQL injection
@@ -258,6 +259,56 @@ namespace DBTools_Utilities
             return getInBdDv(query);
 
 
+        }
+
+        /// <summary>
+        /// Returns a DataView based on the parameters given with parameterized WHERE clause<br/>
+        /// This method uses parameterized queries to prevent SQL injection attacks.<br/>
+        /// </summary>
+        /// <param name="_fields">Field names to select (e.g., "id, name" or "*")</param>
+        /// <param name="_table">Table name</param>
+        /// <param name="whereClause">WHERE clause with parameter placeholders (e.g., "id = @param0 AND status = @param1")</param>
+        /// <param name="parameters">Array of parameter values corresponding to the placeholders in whereClause</param>
+        /// <returns>DataView with the query results</returns>
+        public DataView Select(String _fields, String _table, String whereClause, Object[] parameters)
+        {
+            // Validate identifiers to prevent SQL injection
+            if (!IsValidIdentifier(_fields))
+                throw new ArgumentException("Invalid field names. Only alphanumeric characters, underscores, dots, brackets, commas, and spaces are allowed.", nameof(_fields));
+            
+            if (!IsValidIdentifier(_table))
+                throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
+
+            // Validate parameters array
+            if (parameters == null)
+                throw new ArgumentNullException(nameof(parameters), "Parameters array cannot be null. Use empty array for no parameters.");
+
+            String query = "";
+            List<SqlParameter> sqlParams = new List<SqlParameter>();
+
+            // Build parameter list
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                string paramName = "@param" + i;
+                sqlParams.Add(new SqlParameter(paramName, parameters[i] ?? (object)DBNull.Value));
+            }
+
+            // Build the query
+            if (!string.IsNullOrEmpty(whereClause))
+            {
+                query = String.Format("SELECT {0} FROM {1} WHERE {2}", _fields, _table, whereClause);
+            }
+            else
+            {
+                query = String.Format("SELECT {0} FROM {1}", _fields, _table);
+            }
+
+            // Set parameters and execute query
+            SqlParameters = sqlParams;
+            DataView result = getInBdDv(query);
+            SqlParameters = null; // Clear parameters after use
+
+            return result;
         }
         /// <summary>
         /// Inserts the data into the database based on the parameters given<br/>
@@ -329,6 +380,7 @@ namespace DBTools_Utilities
         /// <param name="_table"></param>
         /// <param name="_values"></param>
         /// <returns></returns>
+        [Obsolete("This method is deprecated. Use the overload with parameterized WHERE clause for better security.", false)]
         public bool Update(String[] _fields, String _table, String[] _values, String condition = "")
         {
             // Validate table name to prevent SQL injection
@@ -384,6 +436,79 @@ namespace DBTools_Utilities
 
 
         }
+
+        /// <summary>
+        /// Updates the database with parameterized WHERE clause for better security
+        /// </summary>
+        /// <param name="_fields">Array of field names to update</param>
+        /// <param name="_table">Table name</param>
+        /// <param name="_values">Array of values to update corresponding to the fields</param>
+        /// <param name="whereClause">WHERE clause with parameter placeholders (e.g., "id = @whereParam0")</param>
+        /// <param name="whereParameters">Array of parameter values for the WHERE clause</param>
+        /// <returns>True if successful, false if error occurred</returns>
+        public bool Update(String[] _fields, String _table, String[] _values, String whereClause, Object[] whereParameters)
+        {
+            // Validate table name to prevent SQL injection
+            if (!IsValidIdentifier(_table))
+                throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
+
+            // Validate arrays are not empty
+            if (_fields == null || _fields.Length == 0)
+                throw new ArgumentException("Fields array cannot be null or empty.", nameof(_fields));
+
+            if (_values == null || _values.Length == 0)
+                throw new ArgumentException("Values array cannot be null or empty.", nameof(_values));
+
+            if (_fields.Length != _values.Length)
+                throw new ArgumentException("Field and value arrays must have the same length.");
+
+            if (string.IsNullOrEmpty(whereClause))
+                throw new ArgumentException("WHERE clause is required for UPDATE operations for security reasons.", nameof(whereClause));
+
+            if (whereParameters == null)
+                throw new ArgumentNullException(nameof(whereParameters), "WHERE parameters array cannot be null. Use empty array for no parameters.");
+
+            // Validate field names to prevent SQL injection
+            foreach (var field in _fields)
+            {
+                if (!IsValidIdentifier(field))
+                    throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
+            }
+
+            String setClause = "";
+            List<SqlParameter> parameters = new List<SqlParameter>();
+
+            // Build SET clause with parameters
+            for (int cont = 0; cont < _fields.Length; cont++)
+            {
+                string paramName = "@param" + cont;
+                setClause += _fields[cont] + "=" + paramName + ",";
+                parameters.Add(new SqlParameter(paramName, _values[cont] ?? (object)DBNull.Value));
+            }
+            
+            setClause = setClause.Substring(0, setClause.Length - 1);
+
+            // Add WHERE clause parameters
+            for (int i = 0; i < whereParameters.Length; i++)
+            {
+                string paramName = "@whereParam" + i;
+                parameters.Add(new SqlParameter(paramName, whereParameters[i] ?? (object)DBNull.Value));
+            }
+
+            // Build the query
+            String query = String.Format("UPDATE {0} SET {1} WHERE {2}", _table, setClause, whereClause);
+            
+            // Set parameters and execute query
+            SqlParameters = parameters;
+            ExecuteQuery(query);
+            SqlParameters = null; // Clear parameters after use
+            
+            if (Error != null)
+            {
+                return false;
+            }
+            return true;
+        }
         /// <summary>
         /// Deletes the row from the database.<br/>
         /// For security reasons, the use of a condition is mandatory.
@@ -391,6 +516,7 @@ namespace DBTools_Utilities
         /// <param name="_table"></param>
         /// <param name="condition"></param>
         /// <returns></returns>
+        [Obsolete("This method is deprecated. Use the overload with parameterized conditions for better security.", false)]
         public bool Delete(String _table, String condition)
         {
             // Validate table name to prevent SQL injection
@@ -414,15 +540,60 @@ namespace DBTools_Utilities
 
 
         }
+
+        /// <summary>
+        /// Deletes rows from the database using parameterized WHERE clause.<br/>
+        /// For security reasons, the use of a condition is mandatory.<br/>
+        /// This method uses parameterized queries to prevent SQL injection attacks.
+        /// </summary>
+        /// <param name="_table">Table name</param>
+        /// <param name="whereClause">WHERE clause with parameter placeholders (e.g., "id = @param0")</param>
+        /// <param name="parameters">Array of parameter values corresponding to the placeholders in whereClause</param>
+        /// <returns>True if successful, false if error occurred</returns>
+        public bool Delete(String _table, String whereClause, Object[] parameters)
+        {
+            // Validate table name to prevent SQL injection
+            if (!IsValidIdentifier(_table))
+                throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
+
+            if (string.IsNullOrEmpty(whereClause))
+                throw new ArgumentException("Condition is required for DELETE operations for security reasons.", nameof(whereClause));
+
+            // Validate parameters array
+            if (parameters == null)
+                throw new ArgumentNullException(nameof(parameters), "Parameters array cannot be null. Use empty array for no parameters.");
+
+            List<SqlParameter> sqlParams = new List<SqlParameter>();
+
+            // Build parameter list
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                string paramName = "@param" + i;
+                sqlParams.Add(new SqlParameter(paramName, parameters[i] ?? (object)DBNull.Value));
+            }
+
+            // Build the query
+            String query = String.Format("DELETE FROM {0} WHERE {1}", _table, whereClause);
+            
+            // Set parameters and execute query
+            SqlParameters = sqlParams;
+            ExecuteQuery(query);
+            SqlParameters = null; // Clear parameters after use
+            
+            if (Error != null)
+            {
+                return false;
+            }
+            return true;
+        }
         //MODULOS DE MANIPULAÇAO DE DADOS
         /// <summary>
         /// Returns a DataView based on the query without the select clause<br/>
-        /// 
+        /// Note: This method is deprecated. Use the overload with parameterized queries for better security.
         /// </summary>
-        /// <param name="_fields"></param>
-        /// <param name="_table"></param>
-        /// <param name="_conditions"></param>
+        /// <param name="query_without_select"></param>
         /// <returns></returns>
+        [Obsolete("This method is deprecated. Use the overload with parameters for better security.", false)]
         public DataView Select(String query_without_select)
         {
 
@@ -432,12 +603,43 @@ namespace DBTools_Utilities
 
 
         }
+
+        /// <summary>
+        /// Returns a DataView based on the query without the select clause using parameterized queries<br/>
+        /// This method uses parameterized queries to prevent SQL injection attacks.<br/>
+        /// </summary>
+        /// <param name="query_without_select">Query without SELECT keyword (e.g., "* FROM users WHERE id = @param0")</param>
+        /// <param name="parameters">Array of parameter values corresponding to the placeholders in the query</param>
+        /// <returns>DataView with the query results</returns>
+        public DataView Select(String query_without_select, Object[] parameters)
+        {
+            // Validate parameters array
+            if (parameters == null)
+                throw new ArgumentNullException(nameof(parameters), "Parameters array cannot be null. Use empty array for no parameters.");
+
+            List<SqlParameter> sqlParams = new List<SqlParameter>();
+
+            // Build parameter list
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                string paramName = "@param" + i;
+                sqlParams.Add(new SqlParameter(paramName, parameters[i] ?? (object)DBNull.Value));
+            }
+
+            // Set parameters and execute query
+            SqlParameters = sqlParams;
+            DataView result = getInBdDv("SELECT " + query_without_select);
+            SqlParameters = null; // Clear parameters after use
+
+            return result;
+        }
         #endregion
 
         #region métodos helpers de queries de banco de dados
         //MODULOS DE MANIPULAÇAO DE DADOS
         /// <summary>
         /// Returns a string based on the parameters given<br/>
+        /// Note: This method returns a query string with string concatenation. For better security, use the non-static Select method with parameterized queries.
         /// </summary>
         /// <param name="_fields"></param>
         /// <param name="_table"></param>
