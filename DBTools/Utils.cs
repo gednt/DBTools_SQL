@@ -273,15 +273,22 @@ namespace DBTools_Utilities
             if (!IsValidIdentifier(_table))
                 throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
+            // Validate arrays are not empty
+            if (_fields == null || _fields.Length == 0)
+                throw new ArgumentException("Fields array cannot be null or empty.", nameof(_fields));
+
+            if (_values == null || _values.Length == 0)
+                throw new ArgumentException("Values array cannot be null or empty.", nameof(_values));
+
+            if (_fields.Length != _values.Length)
+                throw new ArgumentException("Field and value arrays must have the same length.");
+
             // Validate field names to prevent SQL injection
             foreach (var field in _fields)
             {
                 if (!IsValidIdentifier(field))
                     throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
             }
-
-            if (_fields.Length != _values.Length)
-                throw new ArgumentException("Field and value arrays must have the same length.");
 
             String fields = "";
             String paramPlaceholders = "";
@@ -328,18 +335,25 @@ namespace DBTools_Utilities
             if (!IsValidIdentifier(_table))
                 throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
-            // Validate field names to prevent SQL injection
-            foreach (var field in _fields)
-            {
-                if (!IsValidIdentifier(field))
-                    throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
-            }
+            // Validate arrays are not empty
+            if (_fields == null || _fields.Length == 0)
+                throw new ArgumentException("Fields array cannot be null or empty.", nameof(_fields));
+
+            if (_values == null || _values.Length == 0)
+                throw new ArgumentException("Values array cannot be null or empty.", nameof(_values));
 
             if (_fields.Length != _values.Length)
                 throw new ArgumentException("Field and value arrays must have the same length.");
 
             if (string.IsNullOrEmpty(condition))
                 throw new ArgumentException("Condition is required for UPDATE operations for security reasons.", nameof(condition));
+
+            // Validate field names to prevent SQL injection
+            foreach (var field in _fields)
+            {
+                if (!IsValidIdentifier(field))
+                    throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
+            }
 
             String setClause = "";
             List<SqlParameter> parameters = new List<SqlParameter>();
@@ -466,15 +480,22 @@ namespace DBTools_Utilities
             if (!IsValidIdentifier(_table))
                 throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
+            // Validate arrays are not empty
+            if (_fields == null || _fields.Length == 0)
+                throw new ArgumentException("Fields array cannot be null or empty.", nameof(_fields));
+
+            if (_values == null || _values.Length == 0)
+                throw new ArgumentException("Values array cannot be null or empty.", nameof(_values));
+
+            if (_fields.Length != _values.Length)
+                throw new ArgumentException("Field and value arrays must have the same length.");
+
             // Validate field names to prevent SQL injection
             foreach (var field in _fields)
             {
                 if (!IsValidIdentifier(field))
                     throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
             }
-
-            if (_fields.Length != _values.Length)
-                throw new ArgumentException("Field and value arrays must have the same length.");
 
             String fields = "";
             String values = "";
@@ -546,18 +567,25 @@ namespace DBTools_Utilities
             if (!IsValidIdentifier(_table))
                 throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
-            // Validate field names to prevent SQL injection
-            foreach (var field in _fields)
-            {
-                if (!IsValidIdentifier(field))
-                    throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
-            }
+            // Validate arrays are not empty
+            if (_fields == null || _fields.Length == 0)
+                throw new ArgumentException("Fields array cannot be null or empty.", nameof(_fields));
+
+            if (_values == null || _values.Length == 0)
+                throw new ArgumentException("Values array cannot be null or empty.", nameof(_values));
 
             if (_fields.Length != _values.Length)
                 throw new ArgumentException("Field and value arrays must have the same length.");
 
             if (string.IsNullOrEmpty(condition))
                 throw new ArgumentException("Condition is required for UPDATE operations for security reasons.", nameof(condition));
+
+            // Validate field names to prevent SQL injection
+            foreach (var field in _fields)
+            {
+                if (!IsValidIdentifier(field))
+                    throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
+            }
 
             String fields = "";
 
