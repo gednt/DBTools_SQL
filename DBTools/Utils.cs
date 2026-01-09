@@ -366,18 +366,8 @@ namespace DBTools_Utilities
                 query = String.Format("SELECT {0} FROM {1}", _fields, _table);
             }
 
-            // Set parameters if provided
-            if (parameters != null && parameters.Length > 0)
-            {
-                SqlParameters = new List<SqlParameter>(parameters);
-            }
-
-            DataView result = getInBdDv(query);
-            
-            // Clear parameters after use
-            SqlParameters = null;
-
-            return result;
+            // Call the parameterized version of getInBdDv
+            return getInBdDv(query, parameters);
         }
         /// <summary>
         /// Inserts the data into the database based on the parameters given<br/>
@@ -561,18 +551,8 @@ namespace DBTools_Utilities
         /// <returns>DataView containing the query results</returns>
         public DataView Select(String query_without_select, params SqlParameter[] parameters)
         {
-            // Set parameters if provided
-            if (parameters != null && parameters.Length > 0)
-            {
-                SqlParameters = new List<SqlParameter>(parameters);
-            }
-
-            DataView result = getInBdDv("SELECT " + query_without_select);
-            
-            // Clear parameters after use
-            SqlParameters = null;
-
-            return result;
+            // Call the parameterized version of getInBdDv
+            return getInBdDv("SELECT " + query_without_select, parameters);
         }
         #endregion
 
