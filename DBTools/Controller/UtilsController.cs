@@ -178,23 +178,30 @@ namespace DBTools.Controller
         }
 
         /// <summary>
-        /// Counts the number of records that match the conditions.
+        /// Counts the number of records that match the conditions using a database-level COUNT query for efficiency.
         /// </summary>
         /// <param name="conditions">WHERE clause conditions (optional)</param>
         /// <returns>The count of matching records</returns>
         public int Count(string conditions = "")
         {
-            return Select(conditions).Count();
+            // Use database-level COUNT for better performance
+            DataView result = _utils.Select("COUNT(*) AS RecordCount", _tableName, conditions);
+            if (result != null && result.Count > 0)
+            {
+                return Convert.ToInt32(result[0]["RecordCount"]);
+            }
+            return 0;
         }
 
         /// <summary>
-        /// Checks if any records exist that match the conditions.
+        /// Checks if any records exist that match the conditions using a database-level query for efficiency.
         /// </summary>
         /// <param name="conditions">WHERE clause conditions (optional)</param>
         /// <returns>True if any matching records exist, false otherwise</returns>
         public bool Any(string conditions = "")
         {
-            return Select(conditions).Any();
+            // Use database-level COUNT for better performance
+            return Count(conditions) > 0;
         }
 
         /// <summary>
@@ -261,9 +268,21 @@ namespace DBTools.Controller
                                 property.SetValue(model, value);
                             }
                         }
-                        catch
+                        catch (InvalidCastException)
                         {
-                            // Skip properties that can't be set
+                            // Skip properties that can't be cast to the target type
+                        }
+                        catch (FormatException)
+                        {
+                            // Skip properties with invalid format
+                        }
+                        catch (OverflowException)
+                        {
+                            // Skip properties where the value is outside the range of the target type
+                        }
+                        catch (ArgumentException)
+                        {
+                            // Skip properties with invalid arguments during conversion
                         }
                     }
                 }
