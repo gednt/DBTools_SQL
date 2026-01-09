@@ -164,7 +164,8 @@ namespace DBTools_Utilities
             setUid(Uid);
         }
         /// <summary>
-        /// Returns a string array of the objects of the Database
+        /// Returns a string array of the objects of the Database<br/>
+        /// Note: For queries with user-provided conditions, use the overload that accepts SqlParameter array for better security.
         /// </summary>
         /// <param name="query"></param>
         /// <returns></returns>
@@ -185,8 +186,40 @@ namespace DBTools_Utilities
 
 
         }
+
         /// <summary>
-        /// Returns a Dataview of the objects of the Database
+        /// Returns a string array of the objects of the Database with parameterized query<br/>
+        /// This is the recommended method for queries with user-provided conditions as it prevents SQL injection.
+        /// </summary>
+        /// <param name="query">SQL query with parameter placeholders (e.g., "SELECT name FROM users WHERE id = @id")</param>
+        /// <param name="parameters">SqlParameter array for the query parameters</param>
+        /// <returns>String array containing the first column values from query results</returns>
+        public String[] getInBd(String query, params SqlParameter[] parameters)
+        {
+            setQuery(query);
+
+            // Set parameters if provided
+            if (parameters != null && parameters.Length > 0)
+            {
+                SqlParameters = new List<SqlParameter>(parameters);
+            }
+
+            DataView dv = new DataView();
+            dv = RetrieveDataSql();
+            
+            // Clear parameters after use
+            SqlParameters = null;
+
+            String[] arrayQuery = new String[dv.Count];
+            for (int cont = 0; cont < dv.Count; cont++)
+            {
+                arrayQuery[cont] = dv[cont][0].ToString();
+            }
+            return arrayQuery;
+        }
+        /// <summary>
+        /// Returns a Dataview of the objects of the Database<br/>
+        /// Note: For queries with user-provided conditions, use the overload that accepts SqlParameter array for better security.
         /// </summary>
         /// <param name="query"></param>
         /// <returns></returns>
@@ -213,6 +246,49 @@ namespace DBTools_Utilities
             }
             return dv;
         }
+
+        /// <summary>
+        /// Returns a Dataview of the objects of the Database with parameterized query<br/>
+        /// This is the recommended method for queries with user-provided conditions as it prevents SQL injection.
+        /// </summary>
+        /// <param name="query">SQL query with parameter placeholders</param>
+        /// <param name="parameters">SqlParameter array for the query parameters</param>
+        /// <returns>DataView containing the query results</returns>
+        public DataView getInBdDv(String query, params SqlParameter[] parameters)
+        {
+            setQuery(query);
+
+            // Set parameters if provided
+            if (parameters != null && parameters.Length > 0)
+            {
+                SqlParameters = new List<SqlParameter>(parameters);
+            }
+
+            DataView dv = new DataView();
+            try
+            {
+                dv = RetrieveDataSql();
+            }
+            catch (Exception e)
+            {
+                Error = e.ToString();
+                // System.Windows.MessageBox.Show(error);
+                return null;
+
+            }
+            finally
+            {
+                // Clear parameters after use
+                SqlParameters = null;
+            }
+
+            String[] arrayQuery = new String[dv.Count];
+            for (int cont = 0; cont < dv.Count; cont++)
+            {
+                arrayQuery[cont] = dv[cont][0].ToString();
+            }
+            return dv;
+        }
         /// <summary>
         /// Executes any sql query that returns no value
         /// </summary>
@@ -230,7 +306,8 @@ namespace DBTools_Utilities
         //MODULOS DE MANIPULAÇAO DE DADOS
         /// <summary>
         /// Returns a DataView based on the parameters given<br/>
-        /// This class can and should be used with the <see cref="QueryBuilder(object)">QueryBuilder Command</see>
+        /// This class can and should be used with the <see cref="QueryBuilder(object)">QueryBuilder Command</see><br/>
+        /// Note: For better security, use the overload that accepts SqlParameter array for parameterized WHERE conditions.
         /// </summary>
         /// <param name="_fields"></param>
         /// <param name="_table"></param>
@@ -258,6 +335,49 @@ namespace DBTools_Utilities
             return getInBdDv(query);
 
 
+        }
+
+        /// <summary>
+        /// Returns a DataView based on the parameters given with parameterized WHERE clause<br/>
+        /// This is the recommended method for SELECT queries with user-provided WHERE conditions as it prevents SQL injection.<br/>
+        /// Example: Select("id, name", "users", "id = @id AND status = @status", new SqlParameter("@id", 1), new SqlParameter("@status", "active"))
+        /// </summary>
+        /// <param name="_fields">Fields to select (e.g., "id, name, email" or "*")</param>
+        /// <param name="_table">Table name</param>
+        /// <param name="_conditions">WHERE clause with parameter placeholders (e.g., "id = @id AND status = @status")</param>
+        /// <param name="parameters">SqlParameter array for the WHERE clause parameters</param>
+        /// <returns>DataView containing the query results</returns>
+        public DataView Select(String _fields, String _table, String _conditions, params SqlParameter[] parameters)
+        {
+            // Validate identifiers to prevent SQL injection
+            if (!IsValidIdentifier(_fields))
+                throw new ArgumentException("Invalid field names. Only alphanumeric characters, underscores, dots, brackets, commas, and spaces are allowed.", nameof(_fields));
+            
+            if (!IsValidIdentifier(_table))
+                throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
+
+            String query = "";
+            if (!string.IsNullOrEmpty(_conditions))
+            {
+                query = String.Format("SELECT {0} FROM {1} WHERE {2}", _fields, _table, _conditions);
+            }
+            else
+            {
+                query = String.Format("SELECT {0} FROM {1}", _fields, _table);
+            }
+
+            // Set parameters if provided
+            if (parameters != null && parameters.Length > 0)
+            {
+                SqlParameters = new List<SqlParameter>(parameters);
+            }
+
+            DataView result = getInBdDv(query);
+            
+            // Clear parameters after use
+            SqlParameters = null;
+
+            return result;
         }
         /// <summary>
         /// Inserts the data into the database based on the parameters given<br/>
@@ -417,11 +537,9 @@ namespace DBTools_Utilities
         //MODULOS DE MANIPULAÇAO DE DADOS
         /// <summary>
         /// Returns a DataView based on the query without the select clause<br/>
-        /// 
+        /// Note: For queries with user-provided WHERE conditions, use the overload that accepts SqlParameter array for better security.
         /// </summary>
-        /// <param name="_fields"></param>
-        /// <param name="_table"></param>
-        /// <param name="_conditions"></param>
+        /// <param name="query_without_select">Query text without the SELECT keyword (e.g., "* FROM users WHERE id = 1")</param>
         /// <returns></returns>
         public DataView Select(String query_without_select)
         {
@@ -432,17 +550,43 @@ namespace DBTools_Utilities
 
 
         }
+
+        /// <summary>
+        /// Returns a DataView based on the query without the select clause with parameterized conditions<br/>
+        /// This is the recommended method for queries with user-provided conditions as it prevents SQL injection.<br/>
+        /// Example: Select("* FROM users WHERE id = @id AND status = @status", new SqlParameter("@id", 1), new SqlParameter("@status", "active"))
+        /// </summary>
+        /// <param name="query_without_select">Query text without the SELECT keyword, using parameter placeholders (e.g., "* FROM users WHERE id = @id")</param>
+        /// <param name="parameters">SqlParameter array for the query parameters</param>
+        /// <returns>DataView containing the query results</returns>
+        public DataView Select(String query_without_select, params SqlParameter[] parameters)
+        {
+            // Set parameters if provided
+            if (parameters != null && parameters.Length > 0)
+            {
+                SqlParameters = new List<SqlParameter>(parameters);
+            }
+
+            DataView result = getInBdDv("SELECT " + query_without_select);
+            
+            // Clear parameters after use
+            SqlParameters = null;
+
+            return result;
+        }
         #endregion
 
         #region métodos helpers de queries de banco de dados
         //MODULOS DE MANIPULAÇAO DE DADOS
         /// <summary>
-        /// Returns a string based on the parameters given<br/>
+        /// Returns a SELECT query string based on the parameters given<br/>
+        /// Note: This method is a static helper that returns a query string. For executing queries with user-provided WHERE conditions,
+        /// use the instance Select method with SqlParameter array for better security and SQL injection prevention.
         /// </summary>
-        /// <param name="_fields"></param>
-        /// <param name="_table"></param>
-        /// <param name="_conditions"></param>
-        /// <returns></returns>
+        /// <param name="_fields">Fields to select (e.g., "id, name, email" or "*")</param>
+        /// <param name="_table">Table name</param>
+        /// <param name="_conditions">WHERE clause conditions (use parameterized instance method when conditions contain user input)</param>
+        /// <returns>SELECT query string</returns>
         public static string Select_Query(String _fields, String _table, String _conditions)
         {
             // Validate identifiers to prevent SQL injection
