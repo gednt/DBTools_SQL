@@ -74,14 +74,16 @@ namespace DBTools.Examples
         public void UpdateWithParameters()
         {
             // Secure: Both SET values and WHERE clause use parameters
+            // Note: For dates, you can pass them as strings in the values array for the SET clause
+            // but they're better passed as DateTime objects in parameter arrays
             string newStatus = "completed";
-            DateTime processedDate = DateTime.Now;
+            string processedDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             int orderId = 12345;
             
             bool success = _utils.Update(
                 new string[] { "status", "processed_date" },
                 "Orders",
-                new string[] { newStatus, processedDate.ToString("yyyy-MM-dd HH:mm:ss") },
+                new string[] { newStatus, processedDate },
                 "order_id = @whereParam0",
                 new object[] { orderId }
             );
@@ -171,12 +173,13 @@ namespace DBTools.Examples
         {
             // NULL values are handled safely by the parameterized query
             string userId = "U123";
+            string lastLogin = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             string optionalNote = null; // This will be converted to DBNull.Value
 
             bool success = _utils.Update(
                 new string[] { "last_login", "login_note" },
                 "Users",
-                new string[] { DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), optionalNote },
+                new string[] { lastLogin, optionalNote },
                 "user_id = @whereParam0",
                 new object[] { userId }
             );
@@ -216,10 +219,11 @@ namespace DBTools.Examples
                 _utils.connectDB();
 
                 // Insert order
+                string orderDate = DateTime.Now.ToString("yyyy-MM-dd");
                 bool orderInserted = _utils.Insert(
                     new string[] { "customer_id", "order_date", "total" },
                     "Orders",
-                    new string[] { "C123", DateTime.Now.ToString("yyyy-MM-dd"), "150.00" }
+                    new string[] { "C123", orderDate, "150.00" }
                 );
 
                 if (!orderInserted)
@@ -244,10 +248,11 @@ namespace DBTools.Examples
                 }
 
                 // Log the transaction
+                string logTimestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                 bool logInserted = _utils.Insert(
                     new string[] { "action", "timestamp", "details" },
                     "AuditLog",
-                    new string[] { "ORDER_PLACED", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), "Order for customer C123" }
+                    new string[] { "ORDER_PLACED", logTimestamp, "Order for customer C123" }
                 );
 
                 Console.WriteLine("Batch operation completed successfully");
