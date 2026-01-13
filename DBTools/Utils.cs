@@ -1,26 +1,29 @@
-﻿using DBTools.Model;
+﻿using DbTools.Model;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.IO;
+using System.Linq;
 namespace DBTools_Utilities
 {
     /// <summary>
     /// Utils Class of the Sql DBTools Library
     /// </summary>
-    public class Utils : DBToolsDll.DBTools_SQL
+    public class Utils : DbTools.DBTools
     {
-        public Utils(String Host, String Database, String Uid, String pwd, String port)
-        {
-            this.Host = Host;
-            this.Database = Database;
-            this.Uid = Uid;
-            this.Password = pwd;
-            this.Port = port;
-        }
         public Utils()
         {
-
+            IConfiguration configuration = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory()) // Set the base path for file providers
+            .AddJsonFile("config.json", optional: false, reloadOnChange: true)
+            .Build();
+            this.Host = configuration["Host"];
+            this.Database = configuration["Database"];
+            this.Uid = configuration["Uid"];
+            this.Password = configuration["Password"];
+            this.Port = configuration["Port"];
         }
         #region Helper methods for validation
         /// <summary>
@@ -28,7 +31,7 @@ namespace DBTools_Utilities
         /// Allows: alphanumeric, underscore, dot (schema.table), brackets ([table]), 
         /// comma and space (for field lists like "id, name"), and asterisk (for SELECT *)
         /// </summary>
-        private static readonly System.Text.RegularExpressions.Regex IdentifierRegex = 
+        private static readonly System.Text.RegularExpressions.Regex IdentifierRegex =
             new System.Text.RegularExpressions.Regex(@"^[\w\.\[\]\,\s\*]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
         /// <summary>
@@ -39,7 +42,7 @@ namespace DBTools_Utilities
         {
             if (string.IsNullOrWhiteSpace(identifier))
                 return false;
-            
+
             // Allow alphanumeric, underscore, dot (for schema.table), brackets (for [table]), and comma/space for field lists
             return IdentifierRegex.IsMatch(identifier);
         }
@@ -242,7 +245,7 @@ namespace DBTools_Utilities
             // Validate identifiers to prevent SQL injection
             if (!IsValidIdentifier(_fields))
                 throw new ArgumentException("Invalid field names. Only alphanumeric characters, underscores, dots, brackets, commas, and spaces are allowed.", nameof(_fields));
-            
+
             if (!IsValidIdentifier(_table))
                 throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
@@ -275,7 +278,7 @@ namespace DBTools_Utilities
             // Validate identifiers to prevent SQL injection
             if (!IsValidIdentifier(_fields))
                 throw new ArgumentException("Invalid field names. Only alphanumeric characters, underscores, dots, brackets, commas, and spaces are allowed.", nameof(_fields));
-            
+
             if (!IsValidIdentifier(_table))
                 throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
@@ -318,7 +321,7 @@ namespace DBTools_Utilities
         /// <param name="_table">Table name</param>
         /// <param name="_values">Array of values to insert corresponding to the fields</param>
         /// <returns></returns>
-        public bool Insert(String[] _fields, String _table, String[] _values)
+        public bool Insert(String[] _fields, String _table, String[] _values, string primary_key_name = null, bool auto_increment = true)
         {
             // Validate table name to prevent SQL injection
             if (!IsValidIdentifier(_table))
@@ -334,6 +337,20 @@ namespace DBTools_Utilities
             if (_fields.Length != _values.Length)
                 throw new ArgumentException("Field and value arrays must have the same length.");
 
+            if (String.IsNullOrEmpty(primary_key_name))
+            {
+                throw new ArgumentException("Primary key name must be provided.", nameof(primary_key_name));
+
+            }
+
+            if (auto_increment.Equals(false))
+            {
+                var fieldsToLower = Array.ConvertAll(_fields, field => field.ToLower());
+                int index_of_primary_key = Array.IndexOf(fieldsToLower, primary_key_name, 0);
+                //Excludes the primary_key name if it is filled and the corresponding value
+                _values = Array.FindAll(_values, value => value != _values[index_of_primary_key]);
+                _fields = Array.FindAll(_fields, field => field != _fields[index_of_primary_key]);
+            }
             // Validate field names to prevent SQL injection
             foreach (var field in _fields)
             {
@@ -353,18 +370,18 @@ namespace DBTools_Utilities
                 paramPlaceholders += paramName + ",";
                 parameters.Add(new SqlParameter(paramName, _values[cont] ?? (object)DBNull.Value));
             }
-            
+
             fields = fields.Remove(fields.Length - 1, 1);
             paramPlaceholders = paramPlaceholders.Remove(paramPlaceholders.Length - 1, 1);
 
             // Build the query
             String query = String.Format("INSERT INTO {0}({1}) VALUES({2})", _table, fields, paramPlaceholders);
-            
+
             // Set parameters and execute query
             SqlParameters = parameters;
             ExecuteQuery(query);
             SqlParameters = null; // Clear parameters after use
-            
+
             if (Error != null)
             {
                 return false;
@@ -417,17 +434,17 @@ namespace DBTools_Utilities
                 setClause += _fields[cont] + "=" + paramName + ",";
                 parameters.Add(new SqlParameter(paramName, _values[cont] ?? (object)DBNull.Value));
             }
-            
+
             setClause = setClause.Substring(0, setClause.Length - 1);
 
             // Build the query
             String query = String.Format("UPDATE {0} SET {1} WHERE {2}", _table, setClause, condition);
-            
+
             // Set parameters and execute query
             SqlParameters = parameters;
             ExecuteQuery(query);
             SqlParameters = null; // Clear parameters after use
-            
+
             if (Error != null)
             {
                 return false;
@@ -485,7 +502,7 @@ namespace DBTools_Utilities
                 setClause += _fields[cont] + "=" + paramName + ",";
                 parameters.Add(new SqlParameter(paramName, _values[cont] ?? (object)DBNull.Value));
             }
-            
+
             setClause = setClause.Substring(0, setClause.Length - 1);
 
             // Add WHERE clause parameters
@@ -497,12 +514,12 @@ namespace DBTools_Utilities
 
             // Build the query
             String query = String.Format("UPDATE {0} SET {1} WHERE {2}", _table, setClause, whereClause);
-            
+
             // Set parameters and execute query
             SqlParameters = parameters;
             ExecuteQuery(query);
             SqlParameters = null; // Clear parameters after use
-            
+
             if (Error != null)
             {
                 return false;
@@ -528,10 +545,10 @@ namespace DBTools_Utilities
 
             // Build the query
             String query = String.Format("DELETE FROM {0} WHERE {1}", _table, condition);
-            
+
             // Execute query
             ExecuteQuery(query);
-            
+
             if (Error != null)
             {
                 return false;
@@ -574,12 +591,12 @@ namespace DBTools_Utilities
 
             // Build the query
             String query = String.Format("DELETE FROM {0} WHERE {1}", _table, whereClause);
-            
+
             // Set parameters and execute query
             SqlParameters = sqlParams;
             ExecuteQuery(query);
             SqlParameters = null; // Clear parameters after use
-            
+
             if (Error != null)
             {
                 return false;
@@ -650,7 +667,7 @@ namespace DBTools_Utilities
             // Validate identifiers to prevent SQL injection
             if (!IsValidIdentifier(_fields))
                 throw new ArgumentException("Invalid field names. Only alphanumeric characters, underscores, dots, brackets, commas, and spaces are allowed.", nameof(_fields));
-            
+
             if (!IsValidIdentifier(_table))
                 throw new ArgumentException("Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_table));
 
@@ -676,7 +693,7 @@ namespace DBTools_Utilities
         /// <param name="_table">Table name</param>
         /// <param name="_values">Array of values to insert corresponding to the fields</param>
         /// <returns></returns>
-        public static string Insert_Query(String[] _fields, String _table, String[] _values)
+        public static string Insert_Query(String[] _fields, String _table, String[] _values, string primary_key_name = "", bool auto_increment = true)
         {
             // Validate table name to prevent SQL injection
             if (!IsValidIdentifier(_table))
@@ -692,6 +709,27 @@ namespace DBTools_Utilities
             if (_fields.Length != _values.Length)
                 throw new ArgumentException("Field and value arrays must have the same length.");
 
+            _fields.ToList().ForEach(field =>
+            {
+                if (field.Contains("DROP"))
+                {
+                    throw new ArgumentException("Invalid field name containing forbidden keyword 'DROP'.", nameof(_fields));
+                }
+                if (field.Contains("DELETE"))
+                {
+                    throw new ArgumentException("Invalid field name containing forbidden keyword 'DELETE'.", nameof(_fields));
+                }
+                //Search for common SQL injection patterns
+                if (
+                field.Contains("--")
+                || field.Contains(";--")
+                || field.Contains("/*")
+                || field.Contains("*/")
+                )
+                {
+                    throw new ArgumentException($"Invalid field name '{field}' containing potential SQL injection patterns.", nameof(_fields));
+                }
+            });
             // Validate field names to prevent SQL injection
             foreach (var field in _fields)
             {
@@ -699,6 +737,19 @@ namespace DBTools_Utilities
                     throw new ArgumentException($"Invalid field name '{field}'. Only alphanumeric characters, underscores, dots, and brackets are allowed.", nameof(_fields));
             }
 
+
+
+            if (!String.IsNullOrEmpty(primary_key_name))
+            {
+                if (auto_increment.Equals(false))
+                {
+                    var fieldsToLower = Array.ConvertAll(_fields, field => field.ToLower());
+                    int index_of_primary_key = Array.IndexOf(fieldsToLower, primary_key_name, 0);
+                    //Excludes the primary_key name if it is filled and the corresponding value
+                    _values = Array.FindAll(_values, value => value != _values[index_of_primary_key]);
+                    _fields = Array.FindAll(_fields, field => field != _fields[index_of_primary_key]);
+                }
+            }
             String fields = "";
             String values = "";
 
@@ -749,7 +800,7 @@ namespace DBTools_Utilities
 
             // Build the query
             String query = String.Format("INSERT INTO {0}({1}) VALUES({2})", _table, fields, values);
-            
+
             return query;
 
 
@@ -827,7 +878,7 @@ namespace DBTools_Utilities
                     _values[cont] = _values[cont].Replace(",", ".");
                 }
             }
-            
+
             // Build SET clause
             for (int cont = 0; cont < _fields.Length; cont++)
             {

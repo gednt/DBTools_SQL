@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("DMF Software")]
 [assembly: AssemblyProduct("DBTools")]
-[assembly: AssemblyCopyright("Copyright © DMF Software 2016-2021")]
+[assembly: AssemblyCopyright("Copyright © DMF Software 2016-2026")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

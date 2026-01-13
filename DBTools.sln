@@ -1,11 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30709.132
+# Visual Studio Version 18
+VisualStudioVersion = 18.1.11312.151 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DBTools", "DBTools\DBTools.csproj", "{39D6736A-81A5-44F4-8B90-56BBF9A4FDB8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestDBTools", "..\TestDBTools\TestDBTools.csproj", "{E00AF64F-7299-4646-8BE6-BDB156CD52E9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DBToolsUnitTest", "DBToolsUnitTest\DBToolsUnitTest.csproj", "{8E2DB77C-5784-4246-8DAC-C9533A5E3148}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,10 +17,10 @@ Global
 		{39D6736A-81A5-44F4-8B90-56BBF9A4FDB8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{39D6736A-81A5-44F4-8B90-56BBF9A4FDB8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{39D6736A-81A5-44F4-8B90-56BBF9A4FDB8}.Release|Any CPU.Build.0 = Release|Any CPU
-		{E00AF64F-7299-4646-8BE6-BDB156CD52E9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E00AF64F-7299-4646-8BE6-BDB156CD52E9}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E00AF64F-7299-4646-8BE6-BDB156CD52E9}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E00AF64F-7299-4646-8BE6-BDB156CD52E9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8E2DB77C-5784-4246-8DAC-C9533A5E3148}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E2DB77C-5784-4246-8DAC-C9533A5E3148}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8E2DB77C-5784-4246-8DAC-C9533A5E3148}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8E2DB77C-5784-4246-8DAC-C9533A5E3148}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DBTools_Utilities;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -6,7 +7,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DBTools.Controller
+namespace DbTools.Controller
 {
     /// <summary>
     /// Generic controller for LINQ-style database manipulation compatible with any model type.
@@ -33,9 +34,9 @@ namespace DBTools.Controller
         /// <param name="port">Database port (default: 1433)</param>
         /// <param name="primaryKeyName">The name of the primary key column (optional)</param>
         /// <param name="autoIncrement">Whether the primary key is auto-incremented (default: true)</param>
-        public UtilsController(string host, string database, string uid, string password, string tableName, string port = "1433", string primaryKeyName = "", bool autoIncrement = true)
+        public UtilsController(string tableName, string primaryKeyName = "", bool autoIncrement = true)
         {
-            _utils = new DBTools_Utilities.Utils(host, database, uid, password, port);
+            _utils = new DBTools_Utilities.Utils();
             _tableName = tableName;
             _primaryKeyName = primaryKeyName;
             _autoIncrement = autoIncrement;
@@ -103,7 +104,36 @@ namespace DBTools.Controller
                 return false;
 
             var genericObj = genericObjects[0];
-            return _utils.Insert(genericObj.columns, _tableName, genericObj.valuesString);
+            return _utils.Insert(genericObj.columns, _tableName, genericObj.valuesString, _primaryKeyName, _autoIncrement);
+        }
+
+        ///<summary>
+        ///Inserts a list of model instances into the database.
+        ///</summary>
+        public bool InsertRange(IEnumerable<TModel> models)
+        {
+            //Creates a list of sql insert statements
+            //And then executes them in a transaction
+            var sqlStatements = new List<string>();
+            foreach (var model in models)
+            {
+                var genericObjects = _utils.QueryBuilder(model, _primaryKeyName, _autoIncrement);
+                if (genericObjects == null || genericObjects.Count == 0)
+                    continue;
+                var genericObj = genericObjects[0];
+                string sql = Utils.Insert_Query(genericObj.columns, _tableName, genericObj.valuesString,"id",false)+";";
+                sqlStatements.Add(sql);
+            }
+            string sqlCombined = string.Join("\n", sqlStatements);
+            _utils.ExecuteQuery(sqlCombined);
+            if(String.IsNullOrEmpty(_utils.Error))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
 
         /// <summary>
@@ -255,7 +285,7 @@ namespace DBTools.Controller
                                 // Handle type conversion
                                 if (property.PropertyType != value.GetType())
                                 {
-                                    if (property.PropertyType.IsGenericType && 
+                                    if (property.PropertyType.IsGenericType &&
                                         property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
                                     {
                                         // Handle nullable types
