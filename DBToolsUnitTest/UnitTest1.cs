@@ -574,6 +574,44 @@ namespace DBToolsUnitTest
         [TestClass]
         public class UtilsConnectionTests
         {
+            /// <summary>
+            /// Helper method to execute test code in a temporary directory with optional config file
+            /// </summary>
+            private static void ExecuteInTempDirectory(Action testAction, string configContent = null)
+            {
+                string originalDir = Directory.GetCurrentDirectory();
+                string tempDir = Path.Combine(Path.GetTempPath(), "DBToolsTest_" + Guid.NewGuid().ToString());
+                Directory.CreateDirectory(tempDir);
+
+                try
+                {
+                    if (configContent != null)
+                    {
+                        string configPath = Path.Combine(tempDir, "config.json");
+                        File.WriteAllText(configPath, configContent);
+                    }
+
+                    Directory.SetCurrentDirectory(tempDir);
+                    testAction();
+                }
+                finally
+                {
+                    // Cleanup
+                    Directory.SetCurrentDirectory(originalDir);
+                    if (Directory.Exists(tempDir))
+                    {
+                        try
+                        {
+                            Directory.Delete(tempDir, true);
+                        }
+                        catch
+                        {
+                            // Ignore cleanup errors
+                        }
+                    }
+                }
+            }
+
             [TestMethod]
             public void Constructor_WithParameters_ShouldSetProperties()
             {
@@ -615,158 +653,65 @@ namespace DBToolsUnitTest
             [TestMethod]
             public void Constructor_WithMissingConfigFile_ShouldThrowFileNotFoundException()
             {
-                // Arrange
-                string originalDir = Directory.GetCurrentDirectory();
-                string tempDir = Path.Combine(Path.GetTempPath(), "DBToolsTest_" + Guid.NewGuid().ToString());
-                Directory.CreateDirectory(tempDir);
-
-                try
+                // Act & Assert
+                ExecuteInTempDirectory(() =>
                 {
-                    Directory.SetCurrentDirectory(tempDir);
-
-                    // Act & Assert
                     var exception = Assert.ThrowsException<FileNotFoundException>(() => new Utils());
                     Assert.IsTrue(exception.Message.Contains("config.json"));
                     Assert.IsTrue(exception.Message.Contains("was not found"));
-                }
-                finally
-                {
-                    // Cleanup
-                    Directory.SetCurrentDirectory(originalDir);
-                    if (Directory.Exists(tempDir))
-                    {
-                        Directory.Delete(tempDir, true);
-                    }
-                }
+                });
             }
 
             [TestMethod]
             public void Constructor_WithMalformedConfigFile_ShouldThrowInvalidOperationException()
             {
-                // Arrange
-                string originalDir = Directory.GetCurrentDirectory();
-                string tempDir = Path.Combine(Path.GetTempPath(), "DBToolsTest_" + Guid.NewGuid().ToString());
-                Directory.CreateDirectory(tempDir);
-                string configPath = Path.Combine(tempDir, "config.json");
-                File.WriteAllText(configPath, "{ invalid json }");
-
-                try
+                // Act & Assert
+                ExecuteInTempDirectory(() =>
                 {
-                    Directory.SetCurrentDirectory(tempDir);
-
-                    // Act & Assert
                     var exception = Assert.ThrowsException<InvalidOperationException>(() => new Utils());
                     Assert.IsTrue(exception.Message.Contains("Failed to load database configuration"));
-                }
-                finally
-                {
-                    // Cleanup
-                    Directory.SetCurrentDirectory(originalDir);
-                    if (Directory.Exists(tempDir))
-                    {
-                        Directory.Delete(tempDir, true);
-                    }
-                }
+                }, "{ invalid json }");
             }
 
             [TestMethod]
             public void Constructor_WithMissingRequiredKeys_ShouldThrowInvalidOperationException()
             {
-                // Arrange
-                string originalDir = Directory.GetCurrentDirectory();
-                string tempDir = Path.Combine(Path.GetTempPath(), "DBToolsTest_" + Guid.NewGuid().ToString());
-                Directory.CreateDirectory(tempDir);
-                string configPath = Path.Combine(tempDir, "config.json");
-                // Missing Password and Port keys
-                File.WriteAllText(configPath, "{ \"Host\": \"localhost\", \"Database\": \"testDB\", \"Uid\": \"testUser\" }");
-
-                try
+                // Act & Assert
+                ExecuteInTempDirectory(() =>
                 {
-                    Directory.SetCurrentDirectory(tempDir);
-
-                    // Act & Assert
                     var exception = Assert.ThrowsException<InvalidOperationException>(() => new Utils());
                     Assert.IsTrue(exception.Message.Contains("required configuration keys are missing"));
                     Assert.IsTrue(exception.Message.Contains("Password"));
                     Assert.IsTrue(exception.Message.Contains("Port"));
-                }
-                finally
-                {
-                    // Cleanup
-                    Directory.SetCurrentDirectory(originalDir);
-                    if (Directory.Exists(tempDir))
-                    {
-                        Directory.Delete(tempDir, true);
-                    }
-                }
+                }, "{ \"Host\": \"localhost\", \"Database\": \"testDB\", \"Uid\": \"testUser\" }");
             }
 
             [TestMethod]
             public void Constructor_WithEmptyConfigValues_ShouldThrowInvalidOperationException()
             {
-                // Arrange
-                string originalDir = Directory.GetCurrentDirectory();
-                string tempDir = Path.Combine(Path.GetTempPath(), "DBToolsTest_" + Guid.NewGuid().ToString());
-                Directory.CreateDirectory(tempDir);
-                string configPath = Path.Combine(tempDir, "config.json");
-                // Empty Host and Database values
-                File.WriteAllText(configPath, "{ \"Host\": \"\", \"Database\": \"\", \"Uid\": \"testUser\", \"Password\": \"123\", \"Port\": \"1433\" }");
-
-                try
+                // Act & Assert
+                ExecuteInTempDirectory(() =>
                 {
-                    Directory.SetCurrentDirectory(tempDir);
-
-                    // Act & Assert
                     var exception = Assert.ThrowsException<InvalidOperationException>(() => new Utils());
                     Assert.IsTrue(exception.Message.Contains("required configuration keys are missing or empty"));
                     Assert.IsTrue(exception.Message.Contains("Host"));
                     Assert.IsTrue(exception.Message.Contains("Database"));
-                }
-                finally
-                {
-                    // Cleanup
-                    Directory.SetCurrentDirectory(originalDir);
-                    if (Directory.Exists(tempDir))
-                    {
-                        Directory.Delete(tempDir, true);
-                    }
-                }
+                }, "{ \"Host\": \"\", \"Database\": \"\", \"Uid\": \"testUser\", \"Password\": \"123\", \"Port\": \"1433\" }");
             }
 
             [TestMethod]
             public void Constructor_WithValidConfig_ShouldLoadAllProperties()
             {
-                // Arrange
-                string originalDir = Directory.GetCurrentDirectory();
-                string tempDir = Path.Combine(Path.GetTempPath(), "DBToolsTest_" + Guid.NewGuid().ToString());
-                Directory.CreateDirectory(tempDir);
-                string configPath = Path.Combine(tempDir, "config.json");
-                File.WriteAllText(configPath, 
-                    "{ \"Host\": \"testhost\", \"Database\": \"testdb\", \"Uid\": \"testuid\", \"Password\": \"testpass\", \"Port\": \"1234\" }");
-
-                try
+                // Act & Assert
+                ExecuteInTempDirectory(() =>
                 {
-                    Directory.SetCurrentDirectory(tempDir);
-
-                    // Act
                     var utils = new Utils();
-
-                    // Assert
                     Assert.AreEqual("testhost", utils.Host);
                     Assert.AreEqual("testdb", utils.Database);
                     Assert.AreEqual("testuid", utils.Uid);
                     Assert.AreEqual("testpass", utils.Password);
                     Assert.AreEqual("1234", utils.Port);
-                }
-                finally
-                {
-                    // Cleanup
-                    Directory.SetCurrentDirectory(originalDir);
-                    if (Directory.Exists(tempDir))
-                    {
-                        Directory.Delete(tempDir, true);
-                    }
-                }
+                }, "{ \"Host\": \"testhost\", \"Database\": \"testdb\", \"Uid\": \"testuid\", \"Password\": \"testpass\", \"Port\": \"1234\" }");
             }
         }
 
