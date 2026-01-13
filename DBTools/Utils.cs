@@ -52,12 +52,7 @@ namespace DBTools_Utilities
                         string.Join(", ", missingKeys));
                 }
             }
-            catch (InvalidOperationException)
-            {
-                // Re-throw our own validation exceptions as-is
-                throw;
-            }
-            catch (Exception ex)
+            catch (Exception ex) when (!(ex is InvalidOperationException))
             {
                 throw new InvalidOperationException(
                     "Failed to load database configuration from 'config.json'. See inner exception for details.",
