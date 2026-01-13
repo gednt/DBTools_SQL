@@ -52,11 +52,6 @@ namespace DBTools_Utilities
                         string.Join(", ", missingKeys));
                 }
             }
-            catch (FileNotFoundException)
-            {
-                // Re-throw file not found exceptions as-is
-                throw;
-            }
             catch (InvalidOperationException)
             {
                 // Re-throw our own validation exceptions as-is
