@@ -8,7 +8,7 @@ namespace DBTools_Utilities
 {
     public class DataExport
     {
-        public String ToCsv(List<DBTools.Model.GenericObject> genericObject, char separator, bool showColums = true, bool showTypes = true)
+        public String ToCsv(List<DbTools.Model.GenericObject> genericObject, char separator, bool showColums = true, bool showTypes = true)
         {
             string strReturn = "";
 
@@ -64,7 +64,8 @@ namespace DBTools_Utilities
             DataTable dt = new DataTable();
             List<DataColumn> dataColumns = new List<DataColumn>();
 
-
+            if (String.IsNullOrEmpty(csv))
+                return dt;
 
             StringReader sr = new StringReader(csv);
             //Mount the columns
