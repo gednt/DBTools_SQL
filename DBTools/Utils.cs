@@ -37,15 +37,17 @@ namespace DBTools_Utilities
         /// <summary>
         /// Validates an identifier (table name, column name) to prevent SQL injection.
         /// Only allows alphanumeric characters, underscores, dots, brackets, and spaces.
-        /// Also checks for forbidden SQL keywords and common SQL injection patterns.
+        /// Also checks for forbidden SQL keywords (DROP, DELETE - case-insensitive) and 
+        /// common SQL injection patterns (SQL comment patterns: --, ;--, /*, */).
         /// </summary>
         private static bool IsValidIdentifier(string identifier)
         {
             if (string.IsNullOrWhiteSpace(identifier))
                 return false;
 
-            // Check for forbidden SQL keywords
-            if (identifier.Contains("DROP") || identifier.Contains("DELETE"))
+            // Check for forbidden SQL keywords (case-insensitive)
+            string upperIdentifier = identifier.ToUpper();
+            if (upperIdentifier.Contains("DROP") || upperIdentifier.Contains("DELETE"))
                 return false;
 
             // Check for common SQL injection patterns (SQL comments)
