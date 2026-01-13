@@ -37,10 +37,20 @@ namespace DBTools_Utilities
         /// <summary>
         /// Validates an identifier (table name, column name) to prevent SQL injection.
         /// Only allows alphanumeric characters, underscores, dots, brackets, and spaces.
+        /// Also checks for forbidden SQL keywords and common SQL injection patterns.
         /// </summary>
         private static bool IsValidIdentifier(string identifier)
         {
             if (string.IsNullOrWhiteSpace(identifier))
+                return false;
+
+            // Check for forbidden SQL keywords
+            if (identifier.Contains("DROP") || identifier.Contains("DELETE"))
+                return false;
+
+            // Check for common SQL injection patterns (SQL comments)
+            if (identifier.Contains("--") || identifier.Contains(";--") || 
+                identifier.Contains("/*") || identifier.Contains("*/"))
                 return false;
 
             // Allow alphanumeric, underscore, dot (for schema.table), brackets (for [table]), and comma/space for field lists
@@ -709,27 +719,6 @@ namespace DBTools_Utilities
             if (_fields.Length != _values.Length)
                 throw new ArgumentException("Field and value arrays must have the same length.");
 
-            _fields.ToList().ForEach(field =>
-            {
-                if (field.Contains("DROP"))
-                {
-                    throw new ArgumentException("Invalid field name containing forbidden keyword 'DROP'.", nameof(_fields));
-                }
-                if (field.Contains("DELETE"))
-                {
-                    throw new ArgumentException("Invalid field name containing forbidden keyword 'DELETE'.", nameof(_fields));
-                }
-                //Search for common SQL injection patterns
-                if (
-                field.Contains("--")
-                || field.Contains(";--")
-                || field.Contains("/*")
-                || field.Contains("*/")
-                )
-                {
-                    throw new ArgumentException($"Invalid field name '{field}' containing potential SQL injection patterns.", nameof(_fields));
-                }
-            });
             // Validate field names to prevent SQL injection
             foreach (var field in _fields)
             {
