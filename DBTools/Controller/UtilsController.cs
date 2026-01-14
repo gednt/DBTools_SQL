@@ -121,12 +121,22 @@ namespace DbTools.Controller
                 if (genericObjects == null || genericObjects.Count == 0)
                     continue;
                 var genericObj = genericObjects[0];
-                string sql = Utils.Insert_Query(genericObj.columns, _tableName, genericObj.valuesString,"id",false)+";";
+                string sql = Utils.Insert_Query(genericObj.columns, _tableName, genericObj.valuesString, "id", false) + ";";
                 sqlStatements.Add(sql);
             }
-            string sqlCombined = string.Join("\n", sqlStatements);
+
+            // Wrap all insert statements in a single explicit transaction to avoid partial inserts
+            var sb = new StringBuilder();
+            sb.AppendLine("BEGIN TRANSACTION;");
+            foreach (var stmt in sqlStatements)
+            {
+                sb.AppendLine(stmt);
+            }
+            sb.AppendLine("COMMIT TRANSACTION;");
+
+            string sqlCombined = sb.ToString();
             _utils.ExecuteQuery(sqlCombined);
-            if(String.IsNullOrEmpty(_utils.Error))
+            if (String.IsNullOrEmpty(_utils.Error))
             {
                 return true;
             }
