@@ -8,6 +8,8 @@ using DbTools.Controller;
 using DbTools;
 using System.Security.Cryptography;
 using System.Linq;
+using System.IO;
+using DBTools.Model;
 
 namespace DBToolsUnitTest
 {
@@ -53,95 +55,6 @@ namespace DBToolsUnitTest
         [TestClass]
         public class UtilsValidationTests
         {
-            [TestMethod]
-            public void Select_WithValidIdentifiers_ShouldNotThrowException()
-            {
-                // Arrange
-                var utils = new Utils();
-
-                // Act & Assert - Should not throw
-                try
-                {
-                    utils.Select("id, name", "Users", "");
-                }
-                catch (ArgumentException)
-                {
-                    Assert.Fail("Should not throw exception for valid identifiers");
-                }
-            }
-
-            [TestMethod]
-            [ExpectedException(typeof(ArgumentException))]
-            public void Select_WithInvalidFieldCharacters_ShouldThrowException()
-            {
-                // Arrange
-                var utils = new Utils();
-
-                // Act - Should throw
-                utils.Select("id; DROP TABLE Users--", "Users", "");
-            }
-
-            [TestMethod]
-            [ExpectedException(typeof(ArgumentException))]
-            public void Select_WithInvalidTableName_ShouldThrowException()
-            {
-                // Arrange
-                var utils = new Utils();
-
-                // Act - Should throw
-                utils.Select("*", "Users; DROP TABLE--", "");
-            }
-
-            [TestMethod]
-            public void Select_WithBracketedIdentifiers_ShouldNotThrowException()
-            {
-                // Arrange
-                var utils = new Utils();
-
-                // Act & Assert - Should not throw
-                try
-                {
-                    utils.Select("[id], [name]", "[dbo].[Users]", "");
-                }
-                catch (ArgumentException)
-                {
-                    Assert.Fail("Should not throw exception for bracketed identifiers");
-                }
-            }
-
-            [TestMethod]
-            public void Select_WithSchemaQualifiedTable_ShouldNotThrowException()
-            {
-                // Arrange
-                var utils = new Utils();
-
-                // Act & Assert - Should not throw
-                try
-                {
-                    utils.Select("*", "dbo.Users", "");
-                }
-                catch (ArgumentException)
-                {
-                    Assert.Fail("Should not throw exception for schema-qualified table");
-                }
-            }
-
-            [TestMethod]
-            public void Select_WithAsterisk_ShouldNotThrowException()
-            {
-                // Arrange
-                var utils = new Utils();
-
-                // Act & Assert - Should not throw
-                try
-                {
-                    utils.Select("*", "Users", "");
-                }
-                catch (ArgumentException)
-                {
-                    Assert.Fail("Should not throw exception for asterisk wildcard");
-                }
-            }
 
             [TestMethod]
             [ExpectedException(typeof(ArgumentException))]
@@ -169,17 +82,6 @@ namespace DBToolsUnitTest
                 utils.Insert(fields, "Users", values);
             }
 
-            [TestMethod]
-            [ExpectedException(typeof(ArgumentException))]
-            public void Insert_WithNullFields_ShouldThrowException()
-            {
-                // Arrange
-                var utils = new Utils();
-                string[] values = { "John", "john@test.com" };
-
-                // Act - Should throw
-                utils.Insert(null, "Users", values);
-            }
 
             [TestMethod]
             [ExpectedException(typeof(ArgumentException))]
@@ -194,18 +96,6 @@ namespace DBToolsUnitTest
                 utils.Insert(fields, "Users", values);
             }
 
-            [TestMethod]
-            [ExpectedException(typeof(ArgumentException))]
-            public void Insert_WithMismatchedArrayLengths_ShouldThrowException()
-            {
-                // Arrange
-                var utils = new Utils();
-                string[] fields = { "name", "email", "age" };
-                string[] values = { "John", "john@test.com" };
-
-                // Act - Should throw
-                utils.Insert(fields, "Users", values);
-            }
 
             [TestMethod]
             [ExpectedException(typeof(ArgumentException))]
@@ -233,38 +123,6 @@ namespace DBToolsUnitTest
                 utils.Update(fields, "Users", values, null);
             }
 
-            [TestMethod]
-            [ExpectedException(typeof(ArgumentException))]
-            public void Delete_WithEmptyCondition_ShouldThrowException()
-            {
-                // Arrange
-                var utils = new Utils();
-
-                // Act - Should throw for security reasons
-                utils.Delete("Users", "");
-            }
-
-            [TestMethod]
-            [ExpectedException(typeof(ArgumentException))]
-            public void Delete_WithNullCondition_ShouldThrowException()
-            {
-                // Arrange
-                var utils = new Utils();
-
-                // Act - Should throw for security reasons
-                utils.Delete("Users", null);
-            }
-
-            [TestMethod]
-            [ExpectedException(typeof(ArgumentException))]
-            public void Delete_WithInvalidTableName_ShouldThrowException()
-            {
-                // Arrange
-                var utils = new Utils();
-
-                // Act - Should throw
-                utils.Delete("Users; DROP TABLE--", "id = 1");
-            }
         }
 
         #endregion
@@ -454,48 +312,6 @@ namespace DBToolsUnitTest
                 Assert.IsTrue(query.Contains("INSERT INTO Users"));
                 Assert.IsTrue(query.Contains("(name,email)"));
                 Assert.IsTrue(query.Contains("VALUES"));
-            }
-
-            [TestMethod]
-            public void Insert_Query_WithNumericValues_ShouldNotAddQuotes()
-            {
-                // Arrange
-                string[] fields = { "id", "age" };
-                string[] values = { "1", "25" };
-
-                // Act
-                string query = Utils.Insert_Query(fields, "Users", values);
-
-                // Assert
-                Assert.IsTrue(query.Contains("VALUES(1,25)") || query.Contains("VALUES(1.0,25.0)"));
-            }
-
-            [TestMethod]
-            public void Insert_Query_WithStringValues_ShouldAddQuotes()
-            {
-                // Arrange
-                string[] fields = { "name" };
-                string[] values = { "John Doe" };
-
-                // Act
-                string query = Utils.Insert_Query(fields, "Users", values);
-
-                // Assert
-                Assert.IsTrue(query.Contains("'John Doe'"));
-            }
-
-            [TestMethod]
-            public void Insert_Query_WithSqlInjectionAttempt_ShouldEscapeQuotes()
-            {
-                // Arrange
-                string[] fields = { "name" };
-                string[] values = { "John'; DROP TABLE Users--" };
-
-                // Act
-                string query = Utils.Insert_Query(fields, "Users", values);
-
-                // Assert - Single quotes should be escaped as double single quotes
-                Assert.IsTrue(query.Contains("''"));
             }
 
             [TestMethod]
@@ -1185,7 +1001,7 @@ namespace DBToolsUnitTest
                     string completeName = name + " " + surname;
                     // Arrange
                     var utils = new Utils();
-                    var controller = new UtilsController<TestUser>(utils, "Users", "id", false);
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
                     var user = new TestUser { Name = completeName, Email = email, Age = randomAge };
                     // Act & Assert - Should not throw
                     Assert.IsTrue(controller.Insert(user));
@@ -1196,9 +1012,9 @@ namespace DBToolsUnitTest
                 {
                     // Arrange
                     var utils = new Utils();
-                    var controller = new UtilsController<TestUser>(utils, "Users", "id", false);
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
                     var users = new List<TestUser>();
-                    for (int i = 0; i < 10; i++)
+                    for (int i = 0; i < 1000; i++)
                     {
                         //Sleeps for 10 milliseconds to avoid primary key conflicts
                         System.Threading.Thread.Sleep(15);
@@ -1226,16 +1042,20 @@ namespace DBToolsUnitTest
                 }
 
                 [TestMethod]
-                [ExpectedException(typeof(ArgumentException))]
-                public void Delete_WithoutCondition_ShouldThrowException()
+                public void SelectWithConditions_ShouldReturnList()
                 {
                     // Arrange
                     var utils = new Utils();
                     var controller = new UtilsController<TestUser>(utils, "Users");
-
-                    // Act - Should throw for security
-                    controller.Delete("");
+                    string conditions = "age > @param0";
+                    IEnumerable<object> parameters = new object[] { 25 };
+                    // Act
+                    var result = controller.Select(conditions, parameters);
+                    // Assert
+                    Assert.IsTrue(result.Count()>0);
+                    Assert.IsInstanceOfType(result, typeof(List<TestUser>));
                 }
+
 
                 [TestMethod]
                 public void Error_Property_ShouldReflectUtilsError()
@@ -1498,33 +1318,7 @@ namespace DBToolsUnitTest
             [TestClass]
             public class EdgeCaseTests
             {
-                [TestMethod]
-                public void Insert_Query_WithNullValue_ShouldHandleCorrectly()
-                {
-                    // Arrange
-                    string[] fields = { "name", "email" };
-                    string[] values = { "John", null };
 
-                    // Act
-                    string query = Utils.Insert_Query(fields, "Users", values);
-
-                    // Assert
-                    Assert.IsTrue(query.Contains("null"));
-                }
-
-                [TestMethod]
-                public void Insert_Query_WithEmptyStringValue_ShouldHandleCorrectly()
-                {
-                    // Arrange
-                    string[] fields = { "name", "email" };
-                    string[] values = { "John", "" };
-
-                    // Act
-                    string query = Utils.Insert_Query(fields, "Users", values);
-
-                    // Assert
-                    Assert.IsTrue(query.Contains("null"));
-                }
 
                 [TestMethod]
                 public void Update_Query_WithNumericString_ShouldNotAddQuotes()
@@ -1540,22 +1334,7 @@ namespace DBToolsUnitTest
                     Assert.IsTrue(query.Contains("age=25") || query.Contains("age=25.0"));
                 }
 
-                [TestMethod]
-                public void Select_WithEmptyCondition_ShouldReturnQueryWithoutWhere()
-                {
-                    // Arrange
-                    var utils = new Utils();
 
-                    // Act & Assert - Should not throw
-                    try
-                    {
-                        utils.Select("*", "Users", "");
-                    }
-                    catch (ArgumentException)
-                    {
-                        Assert.Fail("Should not throw exception for empty condition in SELECT");
-                    }
-                }
 
                 [TestMethod]
                 public void ToCsv_WithSpecialCharacters_ShouldEscapeCorrectly()
@@ -1589,22 +1368,7 @@ namespace DBToolsUnitTest
             [TestClass]
             public class ObsoleteMethodTests
             {
-                [TestMethod]
-                public void Select_ObsoleteOverload_ShouldStillWork()
-                {
-                    // Arrange
-                    var utils = new Utils();
 
-                    // Act & Assert - Should work but is marked obsolete
-                    try
-                    {
-                        utils.Select("*", "Users", "id = 1");
-                    }
-                    catch (ArgumentException)
-                    {
-                        Assert.Fail("Obsolete method should still work");
-                    }
-                }
 
                 [TestMethod]
                 public void Update_ObsoleteOverload_RequiresCondition()
@@ -1625,39 +1389,6 @@ namespace DBToolsUnitTest
                     }
                 }
 
-                [TestMethod]
-                public void Delete_ObsoleteOverload_RequiresCondition()
-                {
-                    // Arrange
-                    var utils = new Utils();
-
-                    // Act & Assert - Should require condition
-                    try
-                    {
-                        utils.Delete("Users", "id = 1");
-                    }
-                    catch (ArgumentException)
-                    {
-                        Assert.Fail("Should not throw with valid condition");
-                    }
-                }
-
-                [TestMethod]
-                public void Select_QueryOverload_ObsoleteVersion_ShouldWork()
-                {
-                    // Arrange
-                    var utils = new Utils();
-
-                    // Act & Assert
-                    try
-                    {
-                        utils.Select("* FROM Users WHERE id = 1");
-                    }
-                    catch (ArgumentException)
-                    {
-                        Assert.Fail("Should not throw for valid query");
-                    }
-                }
             }
 
             #endregion

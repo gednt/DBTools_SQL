@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DBTools.Model;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
@@ -8,7 +9,7 @@ namespace DBTools_Utilities
 {
     public class DataExport
     {
-        public String ToCsv(List<DbTools.Model.GenericObject> genericObject, char separator, bool showColums = true, bool showTypes = true)
+        public String ToCsv(List<GenericObject> genericObject, char separator, bool showColums = true, bool showTypes = true)
         {
             string strReturn = "";
 
