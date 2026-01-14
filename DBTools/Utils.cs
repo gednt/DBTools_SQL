@@ -67,7 +67,7 @@ namespace DBTools_Utilities
         /// comma and space (for field lists like "id, name"), and asterisk (for SELECT *)
         /// </summary>
         private static readonly System.Text.RegularExpressions.Regex IdentifierRegex =
-            new System.Text.RegularExpressions.Regex(@"^[\w\.\[\]\,\s\*]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+            new System.Text.RegularExpressions.Regex(@"^[\w\.\[\]\,\s\*\(\)]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
         /// <summary>
         /// Validates an identifier (table name, column name) to prevent SQL injection.
