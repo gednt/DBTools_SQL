@@ -118,6 +118,7 @@
     <Compile Include="Classes\DBTools.cs" />
     <Compile Include="Controller\DataExportController.cs" />
     <Compile Include="Controller\DBToolsController.cs" />
+    <Compile Include="Controller\PropertyBasedUtilsController.cs" />
     <Compile Include="Controller\UtilsController.cs" />
     <Compile Include="Interfaces\IDBTools.cs" />
     <Compile Include="Model\GenericObject.cs" />
