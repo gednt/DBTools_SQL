@@ -1,9 +1,9 @@
 # DBTools_SQL
 
-A robust .NET Framework library for SQL Server database operations with built-in security features, parameterized queries, and comprehensive data manipulation utilities.
+A robust .NET library for SQL Server database operations with built-in security features, parameterized queries, and comprehensive data manipulation utilities.
 
-[![.NET Framework](https://img.shields.io/badge/.NET%20Framework-4.8-blue.svg)](https://dotnet.microsoft.com/download/dotnet-framework/net48)
-[![C#](https://img.shields.io/badge/C%23-7.3-green.svg)](https://docs.microsoft.com/en-us/dotnet/csharp/)
+[![.NET](https://img.shields.io/badge/.NET-8.0-blue.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
+[![C#](https://img.shields.io/badge/C%23-latest-green.svg)](https://docs.microsoft.com/en-us/dotnet/csharp/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 
 ## Table of Contents
@@ -1086,9 +1086,9 @@ catch (Exception ex)
 
 ## Requirements
 
-- **.NET Framework 4.8** or higher
-- **C# 7.3** or higher
-- **SQL Server** (any version compatible with System.Data.SqlClient)
+- **.NET 8.0** or higher
+- **C#** latest version
+- **SQL Server** (any version compatible with Microsoft.Data.SqlClient)
 - **Microsoft.Extensions.Configuration** NuGet package
 - **Microsoft.Extensions.Configuration.Json** NuGet package
 
