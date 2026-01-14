@@ -768,13 +768,21 @@ namespace DBTools_Utilities
 
             if (!String.IsNullOrEmpty(primary_key_name))
             {
-                if (auto_increment.Equals(false))
+                // Exclude the primary key only when it is auto-incremented
+                if (auto_increment.Equals(true))
                 {
                     var fieldsToLower = Array.ConvertAll(_fields, field => field.ToLower());
-                    int index_of_primary_key = Array.IndexOf(fieldsToLower, primary_key_name, 0);
-                    //Excludes the primary_key name if it is filled and the corresponding value
-                    _values = Array.FindAll(_values, value => value != _values[index_of_primary_key]);
-                    _fields = Array.FindAll(_fields, field => field != _fields[index_of_primary_key]);
+                    int index_of_primary_key = Array.IndexOf(fieldsToLower, primary_key_name.ToLower(), 0);
+                    if (index_of_primary_key >= 0)
+                    {
+                        // Exclude the primary_key name and the corresponding value by index
+                        var fieldList = new List<string>(_fields);
+                        var valueList = new List<object>(_values);
+                        fieldList.RemoveAt(index_of_primary_key);
+                        valueList.RemoveAt(index_of_primary_key);
+                        _fields = fieldList.ToArray();
+                        _values = valueList.ToArray();
+                    }
                 }
             }
             String fields = "";
