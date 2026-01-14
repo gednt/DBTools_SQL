@@ -202,7 +202,7 @@ bool success = dbUtils.Insert(
 
 #### UPDATE - Modify Records
 
-**Basic Update with String Condition:**
+**Traditional Approach:**
 ```csharp
 string[] fields = { "name", "email" };
 string[] values = { "John Smith", "johnsmith@example.com" };
@@ -214,6 +214,26 @@ bool success = dbUtils.Update(
     "_values": values,
     "condition": condition
 );
+```
+
+**LINQ-Style Approach:**
+```csharp
+var userController = new PropertyBasedUtilsController<User>("Users", "Id");
+
+var user = userController.FirstOrDefaultByProperty(u => u.Id, 5);
+user.Email = "johnsmith@example.com";
+user.Username = "john_smith";
+
+// Update by property
+bool success = userController.UpdateByProperty(user, u => u.Id, 5);
+
+// Or update where multiple conditions match
+userController.UpdateWhere(user,
+    u => u.Status, "active",
+    u => u.Age, 25);
+
+// Insert or update (upsert)
+userController.InsertOrUpdate(user, u => u.Username);
 ```
 
 **Parameterized Update (Recommended):**
@@ -315,6 +335,253 @@ String,Decimal,DateTime
 Name,Price,CreatedDate
 Laptop,999.99,2024-01-15 10:30:00
 Mouse,29.99,2024-01-16 14:20:00
+```
+
+---
+
+## PropertyBasedUtilsController - LINQ-Style Queries
+
+The `PropertyBasedUtilsController<TModel>` provides a modern, type-safe way to interact with your database using lambda expressions, similar to Entity Framework's LINQ queries.
+
+### Why Use PropertyBasedUtilsController?
+
+? **Type Safety**: Compile-time checking for property names  
+? **IntelliSense Support**: IDE autocomplete for properties  
+? **Cleaner Code**: More readable and maintainable queries  
+? **Less Error-Prone**: No string-based column names  
+? **Refactoring-Friendly**: Rename properties safely with IDE refactoring tools  
+
+### Setup
+
+```csharp
+using DBTools_Utilities.Controller;
+
+// Define your model
+public class User
+{
+    public int Id { get; set; }
+    public string Username { get; set; }
+    public string Email { get; set; }
+    public int Age { get; set; }
+    public string Status { get; set; }
+    public DateTime? LastLogin { get; set; }
+}
+
+// Create controller
+var userController = new PropertyBasedUtilsController<User>(
+    tableName: "Users",
+    primaryKeyName: "Id",
+    autoIncrement: true
+);
+```
+
+### Query Methods
+
+#### Comparison Queries
+
+```csharp
+// Equality
+var user = userController.WhereEquals(u => u.Username, "john_doe");
+var notActive = userController.WhereNotEquals(u => u.Status, "active");
+
+// Numeric comparisons
+var adults = userController.WhereGreaterThan(u => u.Age, 18);
+var seniors = userController.WhereGreaterThanOrEquals(u => u.Age, 65);
+var young = userController.WhereLessThan(u => u.Age, 25);
+var ageRange = userController.WhereBetween(u => u.Age, 25, 40);
+```
+
+#### String Queries
+
+```csharp
+// Pattern matching
+var gmailUsers = userController.WhereContains(u => u.Email, "@gmail.com");
+var johnUsers = userController.WhereStartsWith(u => u.Username, "john");
+var adminUsers = userController.WhereEndsWith(u => u.Email, "@admin.com");
+```
+
+#### Collection Queries
+
+```csharp
+// IN clause
+var specificUsers = userController.WhereIn(u => u.Id, new[] { 1, 2, 3, 5, 8 });
+var activeOrPending = userController.WhereIn(u => u.Status, new[] { "active", "pending" });
+
+// NOT IN clause
+var excludedUsers = userController.WhereNotIn(u => u.Id, new[] { 99, 100 });
+```
+
+#### Null Checks
+
+```csharp
+// Check for null
+var usersWithoutEmail = userController.WhereIsNull(u => u.Email);
+var neverLoggedIn = userController.WhereIsNull(u => u.LastLogin);
+
+// Check for not null
+var usersWithEmail = userController.WhereIsNotNull(u => u.Email);
+```
+
+#### Example-Based Filtering
+
+```csharp
+// Use a model as a filter template
+var filter = new User
+{
+    Status = "active",
+    Age = 30
+    // Only set properties you want to filter by
+};
+
+var matchingUsers = userController.WhereByExample(filter);
+// Finds all users with Status='active' AND Age=30
+```
+
+### CRUD Operations
+
+#### Retrieve Records
+
+```csharp
+// Get all records
+var allUsers = userController.All();
+
+// Get by ID
+var user = userController.GetById(5);
+
+// Get first matching record
+var firstJohn = userController.FirstOrDefaultByProperty(u => u.Username, "john");
+
+// Get single record (throws if 0 or >1 found)
+var singleUser = userController.SingleByProperty(u => u.Email, "unique@example.com");
+
+// Check existence
+bool exists = userController.Exists(u => u.Username, "john_doe");
+bool anyAdults = userController.AnyByProperty(u => u.Age, 18);
+
+// Count records
+int userCount = userController.Count();
+int activeCount = userController.CountByProperty(u => u.Status, "active");
+```
+
+#### Insert Records
+
+```csharp
+var newUser = new User
+{
+    Username = "jane_doe",
+    Email = "jane@example.com",
+    Age = 28,
+    Status = "active"
+};
+
+// Simple insert
+bool success = userController.Insert(newUser);
+
+// Insert and retrieve (gets auto-generated ID)
+var insertedUser = userController.InsertAndFind(newUser, u => u.Username);
+Console.WriteLine($"New user ID: {insertedUser.Id}");
+
+// Get or create (insert if not exists)
+var user = userController.GetOrCreate(newUser, u => u.Username);
+
+// Insert or update (upsert)
+userController.InsertOrUpdate(newUser, u => u.Username);
+```
+
+#### Update Records
+
+```csharp
+// Update by single property
+var user = userController.GetById(5);
+user.Email = "newemail@example.com";
+userController.UpdateByProperty(user, u => u.Id, 5);
+
+// Update by multiple properties
+userController.UpdateWhere(user,
+    u => u.Username, "john_doe",
+    u => u.Status, "active");
+
+// Update where property is in list
+userController.UpdateWhereIn(user, u => u.Id, new[] { 1, 2, 3 });
+
+// Update where property is null
+userController.UpdateWhereIsNull(user, u => u.Email);
+```
+
+#### Delete Records
+
+```csharp
+// Delete by single property
+userController.DeleteByProperty(u => u.Id, 5);
+
+// Delete by multiple properties
+userController.DeleteWhere(
+    u => u.Status, "inactive",
+    u => u.Age, 100);
+
+// Delete where property is in list
+userController.DeleteWhereIn(u => u.Id, new[] { 10, 11, 12 });
+
+// Delete where property is null
+userController.DeleteWhereIsNull(u => u.Email);
+```
+
+### Chaining with LINQ
+
+The controller returns `IEnumerable<TModel>`, so you can chain LINQ operations:
+
+```csharp
+// Get users and process with LINQ
+var topUsers = userController
+    .WhereGreaterThan(u => u.Age, 18)
+    .OrderByDescending(u => u.Age)
+    .Take(10)
+    .ToList();
+
+// Complex filtering
+var filteredUsers = userController
+    .WhereEquals(u => u.Status, "active")
+    .Where(u => u.Email.Contains("@gmail.com"))
+    .Select(u => new { u.Username, u.Email })
+    .ToList();
+
+// Grouping
+var usersByAge = userController
+    .All()
+    .GroupBy(u => u.Age)
+    .Select(g => new { Age = g.Key, Count = g.Count() })
+    .ToList();
+```
+
+### Performance Considerations
+
+- **Database-Side Filtering**: All `Where*` methods execute on the database, not in memory
+- **Parameterized Queries**: All queries use parameterized SQL for security and performance
+- **Efficient Queries**: Only specified columns are retrieved
+- **Connection Management**: Connections are automatically managed
+
+### Migration from Traditional Utils
+
+**Before (Traditional):**
+```csharp
+var utils = new Utils();
+DataView results = utils.Select("*", "Users", "age > @param0", new object[] { 18 });
+
+foreach (DataRowView row in results)
+{
+    Console.WriteLine($"User: {row["username"]}");
+}
+```
+
+**After (LINQ-Style):**
+```csharp
+var userController = new PropertyBasedUtilsController<User>("Users", "Id");
+var results = userController.WhereGreaterThan(u => u.Age, 18);
+
+foreach (var user in results)
+{
+    Console.WriteLine($"User: {user.Username}");
+}
 ```
 
 ## Security

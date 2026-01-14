@@ -2,6 +2,15 @@
 
 Get up and running with DBTools_SQL in under 5 minutes!
 
+## Table of Contents
+
+1. [Installation](#installation)
+2. [Traditional Approach - 5-Minute Tutorial](#traditional-approach---5-minute-tutorial)
+3. [LINQ-Style Approach - Modern Queries](#linq-style-approach---modern-queries)
+4. [Common Patterns](#common-patterns)
+5. [Best Practices](#best-practices)
+6. [Troubleshooting](#troubleshooting)
+
 ## Installation
 
 ### Step 1: Add DBTools_SQL to Your Project
@@ -46,7 +55,7 @@ var utils = new Utils();
 
 ---
 
-## 5-Minute Tutorial
+## Traditional Approach - 5-Minute Tutorial
 
 ### 1. SELECT - Read Data
 
@@ -114,6 +123,114 @@ bool success = utils.Delete(
 if (success)
     Console.WriteLine("User deleted!");
 ```
+
+---
+
+## LINQ-Style Approach - Modern Queries
+
+For a more modern, type-safe approach similar to Entity Framework, use the `PropertyBasedUtilsController`:
+
+### Setup
+
+```csharp
+using DBTools_Utilities.Controller;
+
+// Define your model
+public class User
+{
+    public int Id { get; set; }
+    public string Username { get; set; }
+    public string Email { get; set; }
+    public int Age { get; set; }
+    public string Status { get; set; }
+}
+
+// Create controller (reads config.json automatically)
+var userController = new PropertyBasedUtilsController<User>("Users", "Id");
+```
+
+### Query Operations
+
+```csharp
+// SELECT: Simple equality
+var activeUsers = userController.WhereEquals(u => u.Status, "active");
+
+// SELECT: Comparisons
+var adults = userController.WhereGreaterThan(u => u.Age, 18);
+var ageRange = userController.WhereBetween(u => u.Age, 25, 40);
+
+// SELECT: String operations
+var gmailUsers = userController.WhereContains(u => u.Email, "@gmail.com");
+var johnUsers = userController.WhereStartsWith(u => u.Username, "john");
+
+// SELECT: Collection queries
+var specificUsers = userController.WhereIn(u => u.Id, new[] { 1, 2, 3, 5 });
+
+// Display results
+foreach (var user in activeUsers)
+{
+    Console.WriteLine($"{user.Username} - {user.Email}");
+}
+```
+
+### CRUD Operations
+
+```csharp
+// INSERT
+var newUser = new User
+{
+    Username = "john_doe",
+    Email = "john@example.com",
+    Age = 30,
+    Status = "active"
+};
+
+bool inserted = userController.Insert(newUser);
+
+// Or insert and get the created record
+var createdUser = userController.InsertAndFind(newUser, u => u.Username);
+Console.WriteLine($"New user ID: {createdUser.Id}");
+
+// UPDATE
+var user = userController.GetById(5);
+user.Email = "newemail@example.com";
+userController.UpdateByProperty(user, u => u.Id, 5);
+
+// DELETE
+userController.DeleteByProperty(u => u.Id, 5);
+
+// Or delete multiple
+userController.DeleteWhereIn(u => u.Id, new[] { 10, 11, 12 });
+```
+
+### Advanced Operations
+
+```csharp
+// Check existence
+bool exists = userController.Exists(u => u.Username, "john_doe");
+
+// Count records
+int count = userController.CountByProperty(u => u.Status, "active");
+
+// Get or create (upsert)
+var user = new User { Username = "jane", Email = "jane@example.com" };
+userController.InsertOrUpdate(user, u => u.Username);
+
+// LINQ chaining
+var topUsers = userController
+    .WhereGreaterThan(u => u.Age, 18)
+    .OrderByDescending(u => u.Age)
+    .Take(10)
+    .ToList();
+```
+
+### Benefits of LINQ-Style Approach
+
+? **Type Safety**: Compile-time checking  
+? **IntelliSense**: IDE autocomplete  
+? **Refactoring**: Safe property renames  
+? **Cleaner Code**: More readable  
+? **Less Errors**: No string-based column names  
 
 ---
 
@@ -215,63 +332,27 @@ namespace DBToolsQuickStart
 
 ## Common Patterns
 
-### Using Objects (Recommended)
-
-Instead of manually defining fields and values, use objects with QueryBuilder:
+### Pattern 1: Traditional Utils Class
 
 ```csharp
-// Define a model
-public class User
-{
-    public string Username { get; set; }
-    public string Email { get; set; }
-    public int Age { get; set; }
-}
+var utils = new Utils();
 
-// Create an instance
-var user = new User
-{
-    Username = "john_doe",
-    Email = "john@example.com",
-    Age = 30
-};
-
-// Use QueryBuilder to convert to database format
-var queryData = utils.QueryBuilder(user);
-
-// Insert easily
-utils.Insert(
-    queryData[0].columns,
-    "Users",
-    queryData[0].values
-);
-```
-
-### Multiple Conditions
-
-```csharp
-// Multiple WHERE conditions
+// Direct SQL-style queries
 DataView results = utils.Select(
     "*",
     "Users",
-    "age > @param0 AND city = @param1 AND status = @param2",
-    new object[] { 18, "New York", "active" }
+    "age > @param0",
+    new object[] { 18 }
 );
 ```
 
-### Joins
+### Pattern 2: LINQ-Style Controller (Recommended)
 
 ```csharp
-// Query with JOIN
-string query = @"
-    u.username,
-    o.order_date,
-    o.total
-    FROM Users u
-    INNER JOIN Orders o ON u.id = o.user_id
-    WHERE u.id = @param0";
+var userController = new PropertyBasedUtilsController<User>("Users", "Id");
 
-DataView results = utils.Select(query, new object[] { userId });
+// Type-safe queries
+var results = userController.WhereGreaterThan(u => u.Age, 18);
 ```
 
 ---
