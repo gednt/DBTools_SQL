@@ -15,15 +15,49 @@ namespace DBTools_Utilities
     {
         public Utils()
         {
-            IConfiguration configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory()) // Set the base path for file providers
-            .AddJsonFile("config.json", optional: false, reloadOnChange: true)
-            .Build();
-            this.Host = configuration["Host"];
-            this.Database = configuration["Database"];
-            this.Uid = configuration["Uid"];
-            this.Password = configuration["Password"];
-            this.Port = configuration["Port"];
+            var basePath = Directory.GetCurrentDirectory();
+            var configFilePath = Path.Combine(basePath, "config.json");
+
+            if (!File.Exists(configFilePath))
+            {
+                throw new FileNotFoundException(
+                    $"The configuration file 'config.json' was not found in directory '{basePath}'.",
+                    configFilePath);
+            }
+
+            try
+            {
+                IConfiguration configuration = new ConfigurationBuilder()
+                    .SetBasePath(basePath) // Set the base path for file providers
+                    .AddJsonFile("config.json", optional: false, reloadOnChange: true)
+                    .Build();
+
+                this.Host = configuration["Host"];
+                this.Database = configuration["Database"];
+                this.Uid = configuration["Uid"];
+                this.Password = configuration["Password"];
+                this.Port = configuration["Port"];
+
+                var missingKeys = new List<string>();
+                if (string.IsNullOrWhiteSpace(this.Host)) missingKeys.Add("Host");
+                if (string.IsNullOrWhiteSpace(this.Database)) missingKeys.Add("Database");
+                if (string.IsNullOrWhiteSpace(this.Uid)) missingKeys.Add("Uid");
+                if (string.IsNullOrWhiteSpace(this.Password)) missingKeys.Add("Password");
+                if (string.IsNullOrWhiteSpace(this.Port)) missingKeys.Add("Port");
+
+                if (missingKeys.Count > 0)
+                {
+                    throw new InvalidOperationException(
+                        "The following required configuration keys are missing or empty in 'config.json': " +
+                        string.Join(", ", missingKeys));
+                }
+            }
+            catch (Exception ex) when (!(ex is InvalidOperationException))
+            {
+                throw new InvalidOperationException(
+                    "Failed to load database configuration from 'config.json'. See inner exception for details.",
+                    ex);
+            }
         }
         #region Helper methods for validation
         /// <summary>

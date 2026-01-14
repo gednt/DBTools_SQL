@@ -574,6 +574,44 @@ namespace DBToolsUnitTest
         [TestClass]
         public class UtilsConnectionTests
         {
+            /// <summary>
+            /// Helper method to execute test code in a temporary directory with optional config file
+            /// </summary>
+            private static void ExecuteInTempDirectory(Action testAction, string configContent = null)
+            {
+                string originalDir = Directory.GetCurrentDirectory();
+                string tempDir = Path.Combine(Path.GetTempPath(), "DBToolsTest_" + Guid.NewGuid().ToString());
+                Directory.CreateDirectory(tempDir);
+
+                try
+                {
+                    if (configContent != null)
+                    {
+                        string configPath = Path.Combine(tempDir, "config.json");
+                        File.WriteAllText(configPath, configContent);
+                    }
+
+                    Directory.SetCurrentDirectory(tempDir);
+                    testAction();
+                }
+                finally
+                {
+                    // Cleanup
+                    Directory.SetCurrentDirectory(originalDir);
+                    if (Directory.Exists(tempDir))
+                    {
+                        try
+                        {
+                            Directory.Delete(tempDir, true);
+                        }
+                        catch
+                        {
+                            // Ignore cleanup errors
+                        }
+                    }
+                }
+            }
+
             [TestMethod]
             public void Constructor_WithParameters_ShouldSetProperties()
             {
@@ -610,6 +648,70 @@ namespace DBToolsUnitTest
                 // Assert - Should not throw exception
                 Assert.AreEqual(TestDatabase, utils.Database);
                 Assert.AreEqual(TestHost, utils.Host);
+            }
+
+            [TestMethod]
+            public void Constructor_WithMissingConfigFile_ShouldThrowFileNotFoundException()
+            {
+                // Act & Assert
+                ExecuteInTempDirectory(() =>
+                {
+                    var exception = Assert.ThrowsException<FileNotFoundException>(() => new Utils());
+                    Assert.IsTrue(exception.Message.Contains("config.json"));
+                    Assert.IsTrue(exception.Message.Contains("was not found"));
+                });
+            }
+
+            [TestMethod]
+            public void Constructor_WithMalformedConfigFile_ShouldThrowInvalidOperationException()
+            {
+                // Act & Assert
+                ExecuteInTempDirectory(() =>
+                {
+                    var exception = Assert.ThrowsException<InvalidOperationException>(() => new Utils());
+                    Assert.IsTrue(exception.Message.Contains("Failed to load database configuration"));
+                }, "{ invalid json }");
+            }
+
+            [TestMethod]
+            public void Constructor_WithMissingRequiredKeys_ShouldThrowInvalidOperationException()
+            {
+                // Act & Assert
+                ExecuteInTempDirectory(() =>
+                {
+                    var exception = Assert.ThrowsException<InvalidOperationException>(() => new Utils());
+                    Assert.IsTrue(exception.Message.Contains("required configuration keys are missing"));
+                    Assert.IsTrue(exception.Message.Contains("Password"));
+                    Assert.IsTrue(exception.Message.Contains("Port"));
+                }, "{ \"Host\": \"localhost\", \"Database\": \"testDB\", \"Uid\": \"testUser\" }");
+            }
+
+            [TestMethod]
+            public void Constructor_WithEmptyConfigValues_ShouldThrowInvalidOperationException()
+            {
+                // Act & Assert
+                ExecuteInTempDirectory(() =>
+                {
+                    var exception = Assert.ThrowsException<InvalidOperationException>(() => new Utils());
+                    Assert.IsTrue(exception.Message.Contains("required configuration keys are missing or empty"));
+                    Assert.IsTrue(exception.Message.Contains("Host"));
+                    Assert.IsTrue(exception.Message.Contains("Database"));
+                }, "{ \"Host\": \"\", \"Database\": \"\", \"Uid\": \"testUser\", \"Password\": \"123\", \"Port\": \"1433\" }");
+            }
+
+            [TestMethod]
+            public void Constructor_WithValidConfig_ShouldLoadAllProperties()
+            {
+                // Act & Assert
+                ExecuteInTempDirectory(() =>
+                {
+                    var utils = new Utils();
+                    Assert.AreEqual("testhost", utils.Host);
+                    Assert.AreEqual("testdb", utils.Database);
+                    Assert.AreEqual("testuid", utils.Uid);
+                    Assert.AreEqual("testpass", utils.Password);
+                    Assert.AreEqual("1234", utils.Port);
+                }, "{ \"Host\": \"testhost\", \"Database\": \"testdb\", \"Uid\": \"testuid\", \"Password\": \"testpass\", \"Port\": \"1234\" }");
             }
         }
 
