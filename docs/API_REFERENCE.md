@@ -5,12 +5,13 @@ Complete API documentation for the DBTools_SQL library.
 ## Table of Contents
 
 1. [Utils Class](#utils-class)
-2. [DBTools Class](#dbtools-class)
-3. [GenericObject Class](#genericobject-class)
-4. [DataExport Class](#dataexport-class)
-5. [Controllers](#controllers)
-6. [Interfaces](#interfaces)
-7. [Models](#models)
+2. [PropertyBasedUtilsController Class](#propertybasedutilscontroller-class)
+3. [DBTools Class](#dbtools-class)
+4. [GenericObject Class](#genericobject-class)
+5. [DataExport Class](#dataexport-class)
+6. [Controllers](#controllers)
+7. [Interfaces](#interfaces)
+8. [Models](#models)
 
 ---
 
@@ -561,6 +562,676 @@ Users--comment
 table/*comment*/
 DROP_users (contains DROP keyword)
 ```
+
+---
+
+## PropertyBasedUtilsController Class
+
+**Namespace**: `DBTools_Utilities.Controller`  
+**Generic Type**: `PropertyBasedUtilsController<TModel>` where TModel : class, new()  
+**Inherits**: `UtilsController<TModel>`
+
+Modern, type-safe database operations using LINQ-style lambda expressions. Similar to Entity Framework's LINQ queries but for raw SQL databases.
+
+### Constructor
+
+#### `PropertyBasedUtilsController(string tableName, string primaryKeyName = "", bool autoIncrement = true)`
+
+Creates a new instance with automatic configuration loading from config.json.
+
+**Parameters:**
+- `tableName` (string) - Database table name
+- `primaryKeyName` (string, optional) - Primary key column name
+- `autoIncrement` (bool, optional) - Whether primary key auto-increments (default: true)
+
+**Example:**
+```csharp
+var userController = new PropertyBasedUtilsController<User>("Users", "Id", true);
+```
+
+---
+
+#### `PropertyBasedUtilsController(Utils utils, string tableName, string primaryKeyName = "", bool autoIncrement = true)`
+
+Creates a new instance with an existing Utils instance.
+
+**Parameters:**
+- `utils` (Utils) - Existing Utils instance with configured connection
+- `tableName` (string) - Database table name
+- `primaryKeyName` (string, optional) - Primary key column name
+- `autoIncrement` (bool, optional) - Whether primary key auto-increments (default: true)
+
+**Example:**
+```csharp
+var utils = new Utils();
+var userController = new PropertyBasedUtilsController<User>(utils, "Users", "Id");
+```
+
+---
+
+### Query Methods
+
+#### Comparison Queries
+
+##### `WhereEquals<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Filters records where the specified property equals the given value.
+
+**Parameters:**
+- `propertySelector` (Expression) - Lambda expression selecting the property (e.g., `u => u.Name`)
+- `value` (TProperty) - Value to match
+
+**Returns:** `IEnumerable<TModel>` - Matching records
+
+**Example:**
+```csharp
+var activeUsers = userController.WhereEquals(u => u.Status, "active");
+var user30 = userController.WhereEquals(u => u.Age, 30);
+```
+
+---
+
+##### `WhereNotEquals<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Filters records where the specified property does not equal the given value.
+
+**Example:**
+```csharp
+var notDeleted = userController.WhereNotEquals(u => u.Status, "deleted");
+```
+
+---
+
+##### `WhereGreaterThan<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Filters records where the property is greater than the value.
+
+**Type Constraint:** TProperty must implement IComparable
+
+**Example:**
+```csharp
+var adults = userController.WhereGreaterThan(u => u.Age, 18);
+var recentOrders = orderController.WhereGreaterThan(o => o.OrderDate, DateTime.Now.AddDays(-7));
+```
+
+---
+
+##### `WhereGreaterThanOrEquals<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Filters records where the property is greater than or equal to the value.
+
+**Example:**
+```csharp
+var seniors = userController.WhereGreaterThanOrEquals(u => u.Age, 65);
+```
+
+---
+
+##### `WhereLessThan<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Filters records where the property is less than the value.
+
+**Example:**
+```csharp
+var young = userController.WhereLessThan(u => u.Age, 25);
+```
+
+---
+
+##### `WhereLessThanOrEquals<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Filters records where the property is less than or equal to the value.
+
+**Example:**
+```csharp
+var eligible = userController.WhereLessThanOrEquals(u => u.Age, 35);
+```
+
+---
+
+##### `WhereBetween<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty minValue, TProperty maxValue)`
+
+Filters records where the property is between two values (inclusive).
+
+**Parameters:**
+- `propertySelector` (Expression) - Property selector
+- `minValue` (TProperty) - Minimum value (inclusive)
+- `maxValue` (TProperty) - Maximum value (inclusive)
+
+**Example:**
+```csharp
+var middleAged = userController.WhereBetween(u => u.Age, 30, 50);
+var thisWeek = orderController.WhereBetween(
+    o => o.OrderDate, 
+    DateTime.Now.AddDays(-7), 
+    DateTime.Now
+);
+```
+
+---
+
+#### String Queries
+
+##### `WhereContains(Expression<Func<TModel, string>> propertySelector, string substring)`
+
+Filters records where the string property contains the substring.
+
+**Uses:** SQL LIKE with wildcards (%substring%)
+
+**Example:**
+```csharp
+var gmailUsers = userController.WhereContains(u => u.Email, "@gmail.com");
+var johnUsers = userController.WhereContains(u => u.Username, "john");
+```
+
+---
+
+##### `WhereStartsWith(Expression<Func<TModel, string>> propertySelector, string prefix)`
+
+Filters records where the string property starts with the prefix.
+
+**Uses:** SQL LIKE with wildcard (prefix%)
+
+**Example:**
+```csharp
+var adminUsers = userController.WhereStartsWith(u => u.Username, "admin_");
+var usOrders = orderController.WhereStartsWith(o => o.Country, "US");
+```
+
+---
+
+##### `WhereEndsWith(Expression<Func<TModel, string>> propertySelector, string suffix)`
+
+Filters records where the string property ends with the suffix.
+
+**Uses:** SQL LIKE with wildcard (%suffix)
+
+**Example:**
+```csharp
+var orgEmails = userController.WhereEndsWith(u => u.Email, ".org");
+```
+
+---
+
+#### Collection Queries
+
+##### `WhereIn<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, IEnumerable<TProperty> values)`
+
+Filters records where the property value is in the given list.
+
+**Uses:** SQL IN clause with parameterized values
+
+**Parameters:**
+- `propertySelector` (Expression) - Property selector
+- `values` (IEnumerable<TProperty>) - List of values to match
+
+**Returns:** `IEnumerable<TModel>` - Empty if values list is empty
+
+**Example:**
+```csharp
+var specificUsers = userController.WhereIn(u => u.Id, new[] { 1, 2, 3, 5, 8 });
+var activeOrPending = userController.WhereIn(u => u.Status, new[] { "active", "pending", "verified" });
+```
+
+---
+
+##### `WhereNotIn<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, IEnumerable<TProperty> values)`
+
+Filters records where the property value is not in the given list.
+
+**Uses:** SQL NOT IN clause
+
+**Example:**
+```csharp
+var excludedUsers = userController.WhereNotIn(u => u.Id, new[] { 99, 100, 101 });
+```
+
+---
+
+#### Null Checks
+
+##### `WhereIsNull<TProperty>(Expression<Func<TModel, TProperty>> propertySelector)`
+
+Filters records where the property is null.
+
+**Example:**
+```csharp
+var usersWithoutEmail = userController.WhereIsNull(u => u.Email);
+var neverLoggedIn = userController.WhereIsNull(u => u.LastLogin);
+```
+
+---
+
+##### `WhereIsNotNull<TProperty>(Expression<Func<TModel, TProperty>> propertySelector)`
+
+Filters records where the property is not null.
+
+**Example:**
+```csharp
+var usersWithEmail = userController.WhereIsNotNull(u => u.Email);
+var loggedInUsers = userController.WhereIsNotNull(u => u.LastLogin);
+```
+
+---
+
+#### Example-Based Filtering
+
+##### `WhereByExample(TModel filterModel)`
+
+Filters records using a model instance as a filter template. Only non-null and non-default properties are included in the WHERE clause.
+
+**Parameters:**
+- `filterModel` (TModel) - Model with properties set to filter values
+
+**Returns:** `IEnumerable<TModel>` - All records if no properties are set
+
+**Example:**
+```csharp
+var filter = new User
+{
+    Status = "active",
+    Age = 30,
+    // Email is null, so it won't be included in the filter
+};
+
+var matchingUsers = userController.WhereByExample(filter);
+// Equivalent to: WHERE Status = 'active' AND Age = 30
+```
+
+---
+
+### CRUD Operations
+
+#### Retrieve Methods
+
+##### `FirstOrDefaultByProperty<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Gets the first record matching the property value, or null if not found.
+
+**Returns:** `TModel` - First matching record or null
+
+**Example:**
+```csharp
+var user = userController.FirstOrDefaultByProperty(u => u.Username, "john_doe");
+if (user != null)
+{
+    Console.WriteLine($"Found user: {user.Email}");
+}
+```
+
+---
+
+##### `SingleByProperty<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Gets the single record matching the property value. Throws exception if zero or more than one record found.
+
+**Returns:** `TModel` - Single matching record
+
+**Throws:**
+- `InvalidOperationException` - If zero or more than one record matches
+
+**Example:**
+```csharp
+try
+{
+    var user = userController.SingleByProperty(u => u.Email, "unique@example.com");
+    Console.WriteLine($"User: {user.Username}");
+}
+catch (InvalidOperationException ex)
+{
+    Console.WriteLine("Expected exactly one user with that email");
+}
+```
+
+---
+
+##### `SingleOrDefaultByProperty<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Gets the single record matching the property value, or null if not found. Throws if more than one record found.
+
+**Returns:** `TModel` - Single matching record or null
+
+**Throws:**
+- `InvalidOperationException` - If more than one record matches
+
+**Example:**
+```csharp
+var user = userController.SingleOrDefaultByProperty(u => u.Email, "might-exist@example.com");
+```
+
+---
+
+##### `CountByProperty<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Counts records matching the property value.
+
+**Returns:** `int` - Number of matching records
+
+**Example:**
+```csharp
+int activeCount = userController.CountByProperty(u => u.Status, "active");
+Console.WriteLine($"Active users: {activeCount}");
+```
+
+---
+
+##### `AnyByProperty<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Checks if any records exist matching the property value.
+
+**Returns:** `bool` - True if any matching records exist
+
+**Example:**
+```csharp
+if (userController.AnyByProperty(u => u.Username, "admin"))
+{
+    Console.WriteLine("Admin user exists");
+}
+```
+
+---
+
+##### `Exists<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Alias for `AnyByProperty`. Checks if a record exists with the specified property value.
+
+**Returns:** `bool` - True if record exists
+
+**Example:**
+```csharp
+bool usernameExists = userController.Exists(u => u.Username, "john_doe");
+```
+
+---
+
+#### Insert Methods
+
+##### `InsertAndFind<TProperty>(TModel model, Expression<Func<TModel, TProperty>> propertySelector)`
+
+Inserts a record and retrieves it after insertion (useful for getting auto-generated IDs).
+
+**Parameters:**
+- `model` (TModel) - Model to insert
+- `propertySelector` (Expression) - Property used to find the inserted record
+
+**Returns:** `TModel` - Inserted model with database-generated values, or null if failed
+
+**Example:**
+```csharp
+var newUser = new User { Username = "jane_doe", Email = "jane@example.com" };
+var insertedUser = userController.InsertAndFind(newUser, u => u.Username);
+
+if (insertedUser != null)
+{
+    Console.WriteLine($"New user ID: {insertedUser.Id}");
+}
+```
+
+---
+
+##### `InsertOrUpdate<TProperty>(TModel model, Expression<Func<TModel, TProperty>> propertySelector)`
+
+Inserts the model if it doesn't exist, otherwise updates it (upsert operation).
+
+**Parameters:**
+- `model` (TModel) - Model to insert or update
+- `propertySelector` (Expression) - Property used to check existence
+
+**Returns:** `bool` - True if successful
+
+**Example:**
+```csharp
+var user = new User { Username = "john_doe", Email = "newemail@example.com", Age = 31 };
+bool success = userController.InsertOrUpdate(user, u => u.Username);
+// If john_doe exists, updates; otherwise inserts
+```
+
+---
+
+##### `GetOrCreate<TProperty>(TModel model, Expression<Func<TModel, TProperty>> propertySelector)`
+
+Returns existing record if found, otherwise inserts and returns the new record.
+
+**Parameters:**
+- `model` (TModel) - Model to insert if not found
+- `propertySelector` (Expression) - Property used to check existence
+
+**Returns:** `TModel` - Existing or newly created record
+
+**Example:**
+```csharp
+var user = new User { Username = "john_doe", Email = "john@example.com" };
+var existingOrNew = userController.GetOrCreate(user, u => u.Username);
+Console.WriteLine($"User ID: {existingOrNew.Id}");
+```
+
+---
+
+#### Update Methods
+
+##### `UpdateByProperty<TProperty>(TModel model, Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Updates records where the specified property equals the given value.
+
+**Parameters:**
+- `model` (TModel) - Model with updated values
+- `propertySelector` (Expression) - Property for WHERE clause
+- `value` (TProperty) - Value to match
+
+**Returns:** `bool` - True if successful
+
+**Example:**
+```csharp
+var user = userController.GetById(5);
+user.Email = "newemail@example.com";
+user.Status = "verified";
+
+bool success = userController.UpdateByProperty(user, u => u.Id, 5);
+```
+
+---
+
+##### `UpdateWhere<TProperty1, TProperty2>(TModel model, Expression<...> property1Selector, TProperty1 value1, Expression<...> property2Selector, TProperty2 value2)`
+
+Updates records matching multiple property conditions.
+
+**Parameters:**
+- `model` (TModel) - Model with updated values
+- `property1Selector` (Expression) - First property selector
+- `value1` (TProperty1) - First value to match
+- `property2Selector` (Expression) - Second property selector
+- `value2` (TProperty2) - Second value to match
+
+**Returns:** `bool` - True if successful
+
+**Example:**
+```csharp
+var user = new User { Status = "active", LastLogin = DateTime.Now };
+
+bool success = userController.UpdateWhere(user,
+    u => u.Username, "john_doe",
+    u => u.Status, "pending");
+// Updates users where Username='john_doe' AND Status='pending'
+```
+
+**Note:** There's also a three-property overload: `UpdateWhere<TProperty1, TProperty2, TProperty3>(...)`
+
+---
+
+##### `UpdateWhereIn<TProperty>(TModel model, Expression<Func<TModel, TProperty>> propertySelector, IEnumerable<TProperty> values)`
+
+Updates records where a property value is in the specified list.
+
+**Parameters:**
+- `model` (TModel) - Model with updated values
+- `propertySelector` (Expression) - Property selector
+- `values` (IEnumerable<TProperty>) - List of values to match
+
+**Returns:** `bool` - True if successful
+
+**Example:**
+```csharp
+var updateModel = new User { Status = "verified" };
+bool success = userController.UpdateWhereIn(updateModel, u => u.Id, new[] { 1, 2, 3, 5 });
+// Updates users with IDs 1, 2, 3, or 5
+```
+
+---
+
+##### `UpdateWhereIsNull<TProperty>(TModel model, Expression<Func<TModel, TProperty>> propertySelector)`
+
+Updates all records where the specified property is null.
+
+**Parameters:**
+- `model` (TModel) - Model with updated values
+- `propertySelector` (Expression) - Property to check for null
+
+**Returns:** `bool` - True if successful
+
+**Example:**
+```csharp
+var defaultEmail = new User { Email = "noemail@example.com" };
+bool success = userController.UpdateWhereIsNull(defaultEmail, u => u.Email);
+// Sets email for all users where Email IS NULL
+```
+
+---
+
+#### Delete Methods
+
+##### `DeleteByProperty<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)`
+
+Deletes records where the specified property equals the given value.
+
+**Parameters:**
+- `propertySelector` (Expression) - Property selector
+- `value` (TProperty) - Value to match for deletion
+
+**Returns:** `bool` - True if successful
+
+**Example:**
+```csharp
+bool success = userController.DeleteByProperty(u => u.Id, 5);
+bool deleted = userController.DeleteByProperty(u => u.Status, "deleted");
+```
+
+---
+
+##### `DeleteWhere<TProperty1, TProperty2>(Expression<...> property1Selector, TProperty1 value1, Expression<...> property2Selector, TProperty2 value2)`
+
+Deletes records matching multiple property conditions.
+
+**Parameters:**
+- `property1Selector` (Expression) - First property selector
+- `value1` (TProperty1) - First value to match
+- `property2Selector` (Expression) - Second property selector
+- `value2` (TProperty2) - Second value to match
+
+**Returns:** `bool` - True if successful
+
+**Example:**
+```csharp
+bool success = userController.DeleteWhere(
+    u => u.Status, "inactive",
+    u => u.LastLogin, DateTime.Now.AddYears(-1));
+// Deletes users where Status='inactive' AND LastLogin < 1 year ago
+```
+
+**Note:** There's also a three-property overload: `DeleteWhere<TProperty1, TProperty2, TProperty3>(...)`
+
+---
+
+##### `DeleteWhereIn<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, IEnumerable<TProperty> values)`
+
+Deletes records where a property value is in the specified list.
+
+**Parameters:**
+- `propertySelector` (Expression) - Property selector
+- `values` (IEnumerable<TProperty>) - List of values to match
+
+**Returns:** `bool` - True if successful
+
+**Example:**
+```csharp
+bool success = userController.DeleteWhereIn(u => u.Id, new[] { 10, 11, 12, 15 });
+// Deletes users with IDs 10, 11, 12, or 15
+```
+
+---
+
+##### `DeleteWhereIsNull<TProperty>(Expression<Func<TModel, TProperty>> propertySelector)`
+
+Deletes records where the specified property is null.
+
+**Parameters:**
+- `propertySelector` (Expression) - Property to check for null
+
+**Returns:** `bool` - True if successful
+
+**Example:**
+```csharp
+bool success = userController.DeleteWhereIsNull(u => u.Email);
+// Deletes all users where Email IS NULL
+```
+
+---
+
+### LINQ Integration
+
+All query methods return `IEnumerable<TModel>`, allowing LINQ chaining:
+
+```csharp
+// Database query + LINQ processing
+var topAdultUsers = userController
+    .WhereGreaterThan(u => u.Age, 18)        // Database filter
+    .OrderByDescending(u => u.Age)           // In-memory sort
+    .Take(10)                                 // In-memory limit
+    .ToList();
+
+// Complex filtering
+var results = userController
+    .WhereEquals(u => u.Status, "active")    // Database filter
+    .Where(u => u.Email.Contains("@"))       // In-memory filter
+    .Select(u => new { u.Username, u.Email }) // Projection
+    .ToList();
+
+// Grouping
+var ageGroups = userController
+    .All()                                    // Get all
+    .GroupBy(u => u.Age)                     // Group
+    .Select(g => new { 
+        Age = g.Key, 
+        Count = g.Count() 
+    })
+    .ToList();
+```
+
+**Performance Note:** LINQ operations after the initial database query execute in memory. For best performance, use the database query methods first, then apply LINQ operations.
+
+---
+
+### Thread Safety
+
+`PropertyBasedUtilsController` is not thread-safe. Create separate instances for each thread or implement proper synchronization.
+
+---
+
+### Inheritance Hierarchy
+
+```
+Object
+  ?? UtilsController<TModel>
+       ?? PropertyBasedUtilsController<TModel>
+```
+
+All methods from `UtilsController<TModel>` are available, including:
+- `All()` - Get all records
+- `GetById(object id)` - Get by primary key
+- `Insert(TModel model)` - Insert record
+- `Update(TModel model, string whereClause, object[] parameters)` - Update records
+- `Delete(string whereClause, object[] parameters)` - Delete records
+- `Count()` - Count all records
+- `Select(string whereClause, object[] parameters)` - Select with custom WHERE clause
 
 ---
 
