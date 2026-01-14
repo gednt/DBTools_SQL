@@ -5,11 +5,12 @@ Comprehensive code examples for DBTools_SQL library.
 ## Table of Contents
 
 1. [Basic Operations](#basic-operations)
-2. [Advanced Queries](#advanced-queries)
-3. [Real-World Applications](#real-world-applications)
-4. [Data Export](#data-export)
-5. [Error Handling](#error-handling)
-6. [Performance Optimization](#performance-optimization)
+2. [LINQ-Style Queries (PropertyBasedUtilsController)](#linq-style-queries-propertybasedutilscontroller)
+3. [Advanced Queries](#advanced-queries)
+4. [Real-World Applications](#real-world-applications)
+5. [Data Export](#data-export)
+6. [Error Handling](#error-handling)
+7. [Performance Optimization](#performance-optimization)
 
 ---
 
@@ -173,6 +174,68 @@ class Program
     }
 }
 ```
+
+---
+
+## LINQ-Style Queries (PropertyBasedUtilsController)
+
+### Example 14: Basic LINQ-Style Queries
+
+```csharp
+using DBTools_Utilities.Controller;
+using System;
+using System.Linq;
+
+public class User
+{
+    public int Id { get; set; }
+    public string Username { get; set; }
+    public string Email { get; set; }
+    public int Age { get; set; }
+    public string Status { get; set; }
+    public DateTime? LastLogin { get; set; }
+}
+
+class Program
+{
+    static void Main()
+    {
+        var userController = new PropertyBasedUtilsController<User>("Users", "Id");
+        
+        // Simple equality query
+        var activeUsers = userController.WhereEquals(u => u.Status, "active");
+        Console.WriteLine($"Active users: {activeUsers.Count()}");
+        
+        // Comparison queries
+        var adults = userController.WhereGreaterThan(u => u.Age, 18);
+        var seniors = userController.WhereGreaterThanOrEquals(u => u.Age, 65);
+        var young = userController.WhereLessThan(u => u.Age, 25);
+        var middleAged = userController.WhereBetween(u => u.Age, 30, 50);
+        
+        // String queries
+        var gmailUsers = userController.WhereContains(u => u.Email, "@gmail.com");
+        var adminUsers = userController.WhereStartsWith(u => u.Username, "admin_");
+        var orgEmails = userController.WhereEndsWith(u => u.Email, ".org");
+        
+        // Collection queries
+        var specificUsers = userController.WhereIn(u => u.Id, new[] { 1, 2, 3, 5, 8 });
+        var excludedUsers = userController.WhereNotIn(u => u.Id, new[] { 99, 100 });
+        
+        // Null checks
+        var usersWithoutEmail = userController.WhereIsNull(u => u.Email);
+        var neverLoggedIn = userController.WhereIsNull(u => u.LastLogin);
+        var hasEmail = userController.WhereIsNotNull(u => u.Email);
+        
+        // Display results
+        foreach (var user in adults.Take(10))
+        {
+            Console.WriteLine($"{user.Username} - Age: {user.Age}");
+        }
+    }
+}
+```
+
+See the [complete LINQ-Style examples in the full documentation](EXAMPLES.md#linq-style-queries-propertybasedutilscontroller).
 
 ---
 
