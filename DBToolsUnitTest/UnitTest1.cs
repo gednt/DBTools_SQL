@@ -1071,6 +1071,225 @@ namespace DBToolsUnitTest
                     // Assert
                     Assert.AreEqual("Test error", error);
                 }
+
+                [TestMethod]
+                public void Update_WithParameterizedWhereClause_ShouldNotThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Id = 1, Name = "Updated Name", Email = "updated@test.com", Age = 30 };
+                    object[] whereParams = { 1 };
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.Update(user, "Id = @whereParam0", whereParams);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception for parameterized update: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                [ExpectedException(typeof(ArgumentException))]
+                public void Update_WithParameterizedWhereClause_EmptyWhereClause_ShouldThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Id = 1, Name = "Test" };
+                    object[] whereParams = { };
+
+                    // Act - Should throw for security
+                    controller.Update(user, "", whereParams);
+                }
+
+                [TestMethod]
+                [ExpectedException(typeof(ArgumentNullException))]
+                public void Update_WithParameterizedWhereClause_NullParameters_ShouldThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Id = 1, Name = "Test" };
+
+                    // Act - Should throw
+                    controller.Update(user, "Id = @whereParam0", null);
+                }
+
+                [TestMethod]
+                public void All_ShouldReturnAllRecords()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    var result = controller.All();
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void Count_WithoutConditions_ShouldReturnTotalCount()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    int count = controller.Count();
+
+                    // Assert
+                    Assert.IsTrue(count >= 0);
+                }
+
+                [TestMethod]
+                public void Count_WithConditions_ShouldReturnFilteredCount()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    string conditions = "Age > @param0";
+                    object[] parameters = { 25 };
+
+                    // Act
+                    int count = controller.Count(conditions, parameters);
+
+                    // Assert
+                    Assert.IsTrue(count >= 0);
+                }
+
+                [TestMethod]
+                public void Any_WithMatchingConditions_ShouldReturnTrue()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    string conditions = "Age > @param0";
+                    object[] parameters = { 0 }; // Should match most records
+
+                    // Act
+                    bool exists = controller.Any(conditions, parameters);
+
+                    // Assert - Should be true if there are any users with age > 0
+                    Assert.IsTrue(exists);
+                }
+
+                [TestMethod]
+                public void Any_WithNoMatchingConditions_ShouldReturnFalse()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    string conditions = "Age > @param0";
+                    object[] parameters = { 999999 }; // Should not match any records
+
+                    // Act
+                    bool exists = controller.Any(conditions, parameters);
+
+                    // Assert
+                    Assert.IsFalse(exists);
+                }
+
+                [TestMethod]
+                public void Find_WithValidPrimaryKey_ShouldReturnModel()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    
+                    // First, insert a user to ensure we have data
+                    var name = Names();
+                    var surname = Surnames();
+                    var email = Emails(name, surname);
+                    var user = new TestUser { Name = name + " " + surname, Email = email, Age = 30 };
+                    controller.Insert(user);
+
+                    // Get the first user's ID
+                    var firstUser = controller.FirstOrDefault();
+                    if (firstUser != null)
+                    {
+                        // Act
+                        var result = controller.Find(firstUser.Id);
+
+                        // Assert
+                        Assert.IsNotNull(result);
+                        Assert.AreEqual(firstUser.Id, result.Id);
+                    }
+                }
+
+                [TestMethod]
+                [ExpectedException(typeof(InvalidOperationException))]
+                public void Find_WithoutPrimaryKeyName_ShouldThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users"); // No primary key specified
+
+                    // Act - Should throw
+                    controller.Find(1);
+                }
+
+                [TestMethod]
+                public void Where_WithConditions_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    string conditions = "Age > @param0";
+                    object[] parameters = { 25 };
+
+                    // Act
+                    var result = controller.Where(conditions, parameters);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void SingleOrDefault_WithSingleMatch_ShouldReturnModel()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    
+                    // Get the first user's ID to ensure we have a unique match
+                    var firstUser = controller.FirstOrDefault();
+                    if (firstUser != null)
+                    {
+                        string conditions = "Id = @param0";
+                        object[] parameters = { firstUser.Id };
+
+                        // Act
+                        var result = controller.SingleOrDefault(conditions, parameters);
+
+                        // Assert
+                        Assert.IsNotNull(result);
+                        Assert.AreEqual(firstUser.Id, result.Id);
+                    }
+                }
+
+                [TestMethod]
+                public void SingleOrDefault_WithNoMatch_ShouldReturnNull()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    string conditions = "Id = @param0";
+                    object[] parameters = { -999999 }; // Non-existent ID
+
+                    // Act
+                    var result = controller.SingleOrDefault(conditions, parameters);
+
+                    // Assert
+                    Assert.IsNull(result);
+                }
             }
 
             #endregion
