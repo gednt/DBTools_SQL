@@ -1369,15 +1369,8 @@ namespace DBToolsUnitTest
 
                     // Assert
                     Assert.IsNotNull(result);
-                    bool hasCorrectDateFormat = false;
-                    foreach (var val in result[0].valuesString)
-                    {
-                        if (val.Contains("2024-01-15"))
-                        {
-                            hasCorrectDateFormat = true;
-                            break;
-                        }
-                    }
+                    bool hasCorrectDateFormat = result[0].valuesString
+                        .Any(val => val.Contains("2024-01-15"));
                     Assert.IsTrue(hasCorrectDateFormat, "DateTime should be formatted as yyyy-MM-dd HH:mm:ss");
                 }
             }
