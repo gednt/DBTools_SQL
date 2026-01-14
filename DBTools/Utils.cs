@@ -383,14 +383,13 @@ namespace DBTools_Utilities
             if (_fields.Length != _values.Length)
                 throw new ArgumentException("Field and value arrays must have the same length.");
 
-            if (String.IsNullOrEmpty(primary_key_name))
-            {
-                throw new ArgumentException("Primary key name must be provided.", nameof(primary_key_name));
-
-            }
-
+            
             if (auto_increment.Equals(false))
             {
+                if (String.IsNullOrEmpty(primary_key_name))
+                {
+                    throw new ArgumentException("Primary key name must be provided when auto_increment is false.", nameof(primary_key_name));
+                }
                 var fieldsToLower = Array.ConvertAll(_fields, field => field.ToLower());
                 int index_of_primary_key = Array.IndexOf(fieldsToLower, primary_key_name, 0);
                 //Excludes the primary_key name if it is filled and the corresponding value
