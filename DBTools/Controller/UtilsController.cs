@@ -158,6 +158,31 @@ namespace DbTools.Controller
         }
 
         /// <summary>
+        /// Updates records in the database based on the model instance using parameterized WHERE clause.
+        /// This is the recommended method for update operations as it provides better security against SQL injection.
+        /// Properties are automatically mapped to database columns.
+        /// </summary>
+        /// <param name="model">The model instance with updated values</param>
+        /// <param name="whereClause">WHERE clause with parameter placeholders (e.g., "id = @whereParam0 AND status = @whereParam1")</param>
+        /// <param name="whereParameters">Array of parameter values corresponding to the placeholders in whereClause</param>
+        /// <returns>True if the update was successful, false otherwise</returns>
+        public bool Update(TModel model, string whereClause, object[] whereParameters)
+        {
+            if (string.IsNullOrEmpty(whereClause))
+                throw new ArgumentException("WHERE clause is required for UPDATE operations for security reasons.", nameof(whereClause));
+
+            if (whereParameters == null)
+                throw new ArgumentNullException(nameof(whereParameters), "WHERE parameters array cannot be null. Use empty array for no parameters.");
+
+            var genericObjects = _utils.QueryBuilder(model, _primaryKeyName, false);
+            if (genericObjects == null || genericObjects.Count == 0)
+                return false;
+
+            var genericObj = genericObjects[0];
+            return _utils.Update(genericObj.columns, _tableName, genericObj.valuesString, whereClause, whereParameters);
+        }
+
+        /// <summary>
         /// Deletes records from the database based on conditions.
         /// </summary>
         /// <param name="conditions">WHERE clause conditions to identify which records to delete (required for security)</param>
@@ -173,11 +198,104 @@ namespace DbTools.Controller
         /// <summary>
         /// Gets the first record that matches the conditions.
         /// </summary>
-        /// <param name="conditions">WHERE clause conditions (optional)</param>
+        /// <param name="conditions">WHERE clause conditions (optional, empty for all records)</param>
+        /// <param name="parameters">Array of parameter values corresponding to the placeholders in conditions</param>
         /// <returns>The first matching model instance or null if not found</returns>
         public TModel FirstOrDefault(string conditions = "", object[] parameters = null)
         {
-            return Select(conditions,parameters).FirstOrDefault();
+            return Select(conditions, parameters ?? new object[] { }).FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Returns all records from the table.
+        /// This is a LINQ-style operation that returns IEnumerable for deferred execution.
+        /// </summary>
+        /// <returns>An enumerable collection of all TModel instances in the table</returns>
+        public IEnumerable<TModel> All()
+        {
+            return Select("", new object[] { });
+        }
+
+        /// <summary>
+        /// Counts the total number of records in the table that match the given conditions.
+        /// </summary>
+        /// <param name="conditions">WHERE clause conditions (optional, empty for all records)</param>
+        /// <param name="parameters">Array of parameter values corresponding to the placeholders in conditions</param>
+        /// <returns>The number of records matching the conditions</returns>
+        public int Count(string conditions = "", object[] parameters = null)
+        {
+            DataView dataView = _utils.Select("COUNT(1) AS RecordCount", _tableName, conditions, parameters ?? new object[] { });
+            if (dataView != null && dataView.Count > 0)
+            {
+                return Convert.ToInt32(dataView[0]["RecordCount"]);
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Determines whether any records exist that match the specified conditions.
+        /// This is more efficient than Count when you only need to check existence.
+        /// </summary>
+        /// <param name="conditions">WHERE clause conditions (optional, empty to check if table has any records)</param>
+        /// <param name="parameters">Array of parameter values corresponding to the placeholders in conditions</param>
+        /// <returns>True if any records exist matching the conditions, false otherwise</returns>
+        public bool Any(string conditions = "", object[] parameters = null)
+        {
+            return Count(conditions, parameters) > 0;
+        }
+
+        /// <summary>
+        /// Finds a record by its primary key value.
+        /// This method requires that the primary key name was specified in the constructor.
+        /// </summary>
+        /// <param name="primaryKeyValue">The value of the primary key to search for</param>
+        /// <returns>The model instance if found, null otherwise</returns>
+        /// <exception cref="InvalidOperationException">Thrown when primary key name is not specified in the constructor</exception>
+        public TModel Find(object primaryKeyValue)
+        {
+            if (string.IsNullOrEmpty(_primaryKeyName))
+                throw new InvalidOperationException("Primary key name must be specified in the constructor to use the Find method.");
+
+            string conditions = $"{_primaryKeyName} = @param0";
+            return Select(conditions, new object[] { primaryKeyValue }).FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Filters records based on the specified conditions.
+        /// This is a LINQ-style Where operation that returns IEnumerable for method chaining.
+        /// </summary>
+        /// <param name="conditions">WHERE clause conditions (e.g., "Age > @param0 AND Active = @param1")</param>
+        /// <param name="parameters">Array of parameter values corresponding to the placeholders in conditions</param>
+        /// <returns>An enumerable collection of TModel instances matching the conditions</returns>
+        public IEnumerable<TModel> Where(string conditions, object[] parameters)
+        {
+            return Select(conditions, parameters);
+        }
+
+        /// <summary>
+        /// Gets a single record that matches the conditions. Throws an exception if zero or more than one record is found.
+        /// </summary>
+        /// <param name="conditions">WHERE clause conditions</param>
+        /// <param name="parameters">Array of parameter values corresponding to the placeholders in conditions</param>
+        /// <returns>The single matching model instance</returns>
+        /// <exception cref="InvalidOperationException">Thrown when zero or more than one record matches the conditions</exception>
+        public TModel Single(string conditions, object[] parameters)
+        {
+            return Select(conditions, parameters).Single();
+        }
+
+        /// <summary>
+        /// Gets a single record that matches the conditions, or null if no records match.
+        /// Throws an exception if more than one record matches.
+        /// When called without conditions, returns the only record in the table or throws if there are multiple records.
+        /// </summary>
+        /// <param name="conditions">WHERE clause conditions (optional, empty to check if table has exactly one record)</param>
+        /// <param name="parameters">Array of parameter values corresponding to the placeholders in conditions</param>
+        /// <returns>The single matching model instance, or null if no match</returns>
+        /// <exception cref="InvalidOperationException">Thrown when more than one record matches the conditions</exception>
+        public TModel SingleOrDefault(string conditions = "", object[] parameters = null)
+        {
+            return Select(conditions, parameters ?? new object[] { }).SingleOrDefault();
         }
 
         /// <summary>

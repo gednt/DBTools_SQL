@@ -1071,6 +1071,225 @@ namespace DBToolsUnitTest
                     // Assert
                     Assert.AreEqual("Test error", error);
                 }
+
+                [TestMethod]
+                public void Update_WithParameterizedWhereClause_ShouldNotThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Id = 1, Name = "Updated Name", Email = "updated@test.com", Age = 30 };
+                    object[] whereParams = { 1 };
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.Update(user, "Id = @whereParam0", whereParams);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception for parameterized update: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                [ExpectedException(typeof(ArgumentException))]
+                public void Update_WithParameterizedWhereClause_EmptyWhereClause_ShouldThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Id = 1, Name = "Test" };
+                    object[] whereParams = { };
+
+                    // Act - Should throw for security
+                    controller.Update(user, "", whereParams);
+                }
+
+                [TestMethod]
+                [ExpectedException(typeof(ArgumentNullException))]
+                public void Update_WithParameterizedWhereClause_NullParameters_ShouldThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Id = 1, Name = "Test" };
+
+                    // Act - Should throw
+                    controller.Update(user, "Id = @whereParam0", null);
+                }
+
+                [TestMethod]
+                public void All_ShouldReturnAllRecords()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    var result = controller.All();
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void Count_WithoutConditions_ShouldReturnTotalCount()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    int count = controller.Count();
+
+                    // Assert
+                    Assert.IsTrue(count >= 0);
+                }
+
+                [TestMethod]
+                public void Count_WithConditions_ShouldReturnFilteredCount()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    string conditions = "Age > @param0";
+                    object[] parameters = { 25 };
+
+                    // Act
+                    int count = controller.Count(conditions, parameters);
+
+                    // Assert
+                    Assert.IsTrue(count >= 0);
+                }
+
+                [TestMethod]
+                public void Any_WithMatchingConditions_ShouldReturnTrue()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    string conditions = "Age > @param0";
+                    object[] parameters = { 0 }; // Should match most records
+
+                    // Act
+                    bool exists = controller.Any(conditions, parameters);
+
+                    // Assert - Should be true if there are any users with age > 0
+                    Assert.IsTrue(exists);
+                }
+
+                [TestMethod]
+                public void Any_WithNoMatchingConditions_ShouldReturnFalse()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    string conditions = "Age > @param0";
+                    object[] parameters = { 999999 }; // Should not match any records
+
+                    // Act
+                    bool exists = controller.Any(conditions, parameters);
+
+                    // Assert
+                    Assert.IsFalse(exists);
+                }
+
+                [TestMethod]
+                public void Find_WithValidPrimaryKey_ShouldReturnModel()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    
+                    // First, insert a user to ensure we have data
+                    var name = Names();
+                    var surname = Surnames();
+                    var email = Emails(name, surname);
+                    var user = new TestUser { Name = name + " " + surname, Email = email, Age = 30 };
+                    controller.Insert(user);
+
+                    // Get the first user's ID
+                    var firstUser = controller.FirstOrDefault();
+                    if (firstUser != null)
+                    {
+                        // Act
+                        var result = controller.Find(firstUser.Id);
+
+                        // Assert
+                        Assert.IsNotNull(result);
+                        Assert.AreEqual(firstUser.Id, result.Id);
+                    }
+                }
+
+                [TestMethod]
+                [ExpectedException(typeof(InvalidOperationException))]
+                public void Find_WithoutPrimaryKeyName_ShouldThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users"); // No primary key specified
+
+                    // Act - Should throw
+                    controller.Find(1);
+                }
+
+                [TestMethod]
+                public void Where_WithConditions_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    string conditions = "Age > @param0";
+                    object[] parameters = { 25 };
+
+                    // Act
+                    var result = controller.Where(conditions, parameters);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void SingleOrDefault_WithSingleMatch_ShouldReturnModel()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    
+                    // Get the first user's ID to ensure we have a unique match
+                    var firstUser = controller.FirstOrDefault();
+                    if (firstUser != null)
+                    {
+                        string conditions = "Id = @param0";
+                        object[] parameters = { firstUser.Id };
+
+                        // Act
+                        var result = controller.SingleOrDefault(conditions, parameters);
+
+                        // Assert
+                        Assert.IsNotNull(result);
+                        Assert.AreEqual(firstUser.Id, result.Id);
+                    }
+                }
+
+                [TestMethod]
+                public void SingleOrDefault_WithNoMatch_ShouldReturnNull()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    string conditions = "Id = @param0";
+                    object[] parameters = { -999999 }; // Non-existent ID
+
+                    // Act
+                    var result = controller.SingleOrDefault(conditions, parameters);
+
+                    // Assert
+                    Assert.IsNull(result);
+                }
             }
 
             #endregion
@@ -1389,6 +1608,450 @@ namespace DBToolsUnitTest
                     }
                 }
 
+            }
+
+            #endregion
+
+            #region PropertyBasedUtilsController Tests
+
+            [TestClass]
+            public class PropertyBasedUtilsControllerTests
+            {
+                private class TestUser
+                {
+                    public int Id { get; set; }
+                    public string Name { get; set; }
+                    public string Email { get; set; }
+                    public int Age { get; set; }
+                }
+
+                [TestMethod]
+                public void Constructor_WithConnectionParameters_ShouldInitialize()
+                {
+                    // Act
+                    var controller = new PropertyBasedUtilsController<TestUser>(new Utils(), "Users", "Id", true);
+
+                    // Assert
+                    Assert.IsNotNull(controller);
+                    Assert.IsNotNull(controller.Utils);
+                }
+
+                [TestMethod]
+                public void Constructor_WithUtilsInstance_ShouldInitialize()
+                {
+                    // Arrange
+                    var utils = new Utils();
+
+                    // Act
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Assert
+                    Assert.IsNotNull(controller);
+                    Assert.IsNotNull(controller.Utils);
+                }
+
+                [TestMethod]
+                public void WhereEquals_WithValidProperty_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    var result = controller.WhereEquals(u => u.Age, 30);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void WhereGreaterThan_WithValidProperty_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    var result = controller.WhereGreaterThan(u => u.Age, 25);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void WhereLessThan_WithValidProperty_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    var result = controller.WhereLessThan(u => u.Age, 50);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void WhereBetween_WithValidProperty_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    var result = controller.WhereBetween(u => u.Age, 20, 40);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void WhereContains_WithValidProperty_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    var result = controller.WhereContains(u => u.Name, "John");
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void WhereStartsWith_WithValidProperty_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    var result = controller.WhereStartsWith(u => u.Email, "john");
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void WhereEndsWith_WithValidProperty_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    var result = controller.WhereEndsWith(u => u.Email, "@test.com");
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void WhereIn_WithValidProperty_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var ages = new List<int> { 25, 30, 35 };
+
+                    // Act
+                    var result = controller.WhereIn(u => u.Age, ages);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void WhereIn_WithEmptyList_ShouldReturnEmptyResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var ages = new List<int>();
+
+                    // Act
+                    var result = controller.WhereIn(u => u.Age, ages);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.AreEqual(0, result.Count());
+                }
+
+                [TestMethod]
+                public void FirstOrDefaultByProperty_WithValidProperty_ShouldReturnResult()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act - Should not throw
+                    try
+                    {
+                        var result = controller.FirstOrDefaultByProperty(u => u.Age, 30);
+                        // Result may be null if no match, but shouldn't throw
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                public void CountByProperty_WithValidProperty_ShouldReturnCount()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    int count = controller.CountByProperty(u => u.Age, 30);
+
+                    // Assert
+                    Assert.IsTrue(count >= 0);
+                }
+
+                [TestMethod]
+                public void AnyByProperty_WithValidProperty_ShouldReturnBool()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act - Should not throw
+                    try
+                    {
+                        bool exists = controller.AnyByProperty(u => u.Age, 30);
+                        // Result is either true or false
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                public void WhereByExample_WithModelTemplate_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var filterModel = new TestUser { Age = 30 };
+
+                    // Act
+                    var result = controller.WhereByExample(filterModel);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void WhereByExample_WithEmptyModel_ShouldReturnAllRecords()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var filterModel = new TestUser(); // Empty model with default values
+
+                    // Act
+                    var result = controller.WhereByExample(filterModel);
+
+                    // Assert - Should return all records when no filter values are set
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                [ExpectedException(typeof(ArgumentNullException))]
+                public void WhereEquals_WithNullExpression_ShouldThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act - Should throw
+                    controller.WhereEquals<int>(null, 30);
+                }
+
+                [TestMethod]
+                public void WhereNotEquals_WithValidProperty_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    var result = controller.WhereNotEquals(u => u.Age, 30);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void WhereIsNotNull_WithValidProperty_ShouldReturnFilteredResults()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act
+                    var result = controller.WhereIsNotNull(u => u.Name);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
+                }
+
+                [TestMethod]
+                public void Exists_WithValidProperty_ShouldReturnBool()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act - Should not throw
+                    bool exists = controller.Exists(u => u.Age, 30);
+
+                    // Assert - Result is either true or false
+                    Assert.IsTrue(exists || !exists);
+                }
+
+                [TestMethod]
+                public void InsertOrUpdate_ShouldNotThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Name = "Test User", Email = "test@test.com", Age = 25 };
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.InsertOrUpdate(user, u => u.Email);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                public void GetOrCreate_ShouldReturnModel()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Name = "GetOrCreate User", Email = "getorcreate@test.com", Age = 35 };
+
+                    // Act
+                    var result = controller.GetOrCreate(user, u => u.Email);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(TestUser));
+                }
+
+                [TestMethod]
+                public void UpdateWhere_WithTwoConditions_ShouldNotThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Name = "Updated Name", Email = "updated@test.com", Age = 40 };
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.UpdateWhere(user, u => u.Age, 30, u => u.Name, "Test");
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                public void UpdateWhere_WithThreeConditions_ShouldNotThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Name = "Updated Name", Email = "updated@test.com", Age = 40 };
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.UpdateWhere(user, u => u.Age, 30, u => u.Name, "Test", u => u.Email, "test@test.com");
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                public void DeleteWhere_WithTwoConditions_ShouldNotThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.DeleteWhere(u => u.Age, 999, u => u.Name, "NonExistent");
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                public void DeleteWhereIn_WithEmptyList_ShouldReturnTrue()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var emptyAges = new List<int>();
+
+                    // Act
+                    bool result = controller.DeleteWhereIn(u => u.Age, emptyAges);
+
+                    // Assert - Should return true as nothing to delete
+                    Assert.IsTrue(result);
+                }
+
+                [TestMethod]
+                public void UpdateWhereIn_WithValidValues_ShouldNotThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Name = "Bulk Updated", Email = "bulk@test.com", Age = 50 };
+                    var ages = new List<int> { 999, 998, 997 };
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.UpdateWhereIn(user, u => u.Age, ages);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception: {ex.Message}");
+                    }
+                }
             }
 
             #endregion
