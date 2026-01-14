@@ -3,7 +3,7 @@ using DBTools.Model;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 
 namespace DbTools
 {
@@ -157,7 +157,7 @@ namespace DbTools
             }
         }
         /// <summary>
-        /// Specify the port of the database: Standard 3306
+        /// Specify the port of the database: Standard 1433
         ///
         /// </summary>
         public string Port { get => port; set => port = value; }
@@ -172,7 +172,7 @@ namespace DbTools
                     return _connectionString;
                 }
 
-                _connectionString = String.Format($"Data Source={Host},{Port};Network Library=DBMSSOCN;Initial Catalog={Database};User ID={Uid};Password={Password};");
+                _connectionString = $"Data Source=tcp:{Host},{Port};Initial Catalog={Database};User ID={Uid};Password={Password};";
 
 
                 return _connectionString;

@@ -651,9 +651,9 @@ namespace DBToolsUnitTest
             {
                 // Arrange
                 var dbTools = new DbTools.DBTools();
-                var parameters = new List<System.Data.SqlClient.SqlParameter>
+                var parameters = new List<Microsoft.Data.SqlClient.SqlParameter>
                 {
-                    new System.Data.SqlClient.SqlParameter("@param0", 1)
+                    new Microsoft.Data.SqlClient.SqlParameter("@param0", 1)
                 };
 
                 // Act

@@ -364,3 +364,8 @@ FodyWeavers.xsd
 
 # NuGet command line tool
 .nuget/
+
+# Backup files from migration
+*.backup
+*.csproj.backup
+packages.config.backup
