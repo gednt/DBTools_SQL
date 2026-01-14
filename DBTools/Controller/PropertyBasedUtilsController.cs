@@ -406,23 +406,257 @@ namespace DbTools.Controller
             return Select(whereClause, parameters.ToArray());
         }
 
+        #region Additional CRUD Operations
+
         /// <summary>
-        /// Extracts the property name from a property selector expression.
+        /// Inserts a new record and returns it after retrieval (useful for getting auto-generated values like Id).
+        /// This method inserts the model then retrieves it using the specified property to find it.
+        /// </summary>
+        /// <typeparam name="TProperty">The type of the property used to find the inserted record</typeparam>
+        /// <param name="model">The model instance to insert</param>
+        /// <param name="propertySelector">Expression to select the property used to find the inserted record</param>
+        /// <returns>The inserted model instance with database-generated values, or null if insert failed</returns>
+        public TModel InsertAndFind<TProperty>(TModel model, Expression<Func<TModel, TProperty>> propertySelector)
+        {
+            if (!Insert(model))
+                return null;
+
+            var propertyInfo = GetPropertyInfo(propertySelector);
+            var value = propertyInfo.GetValue(model);
+            return FirstOrDefaultByProperty(propertySelector, (TProperty)value);
+        }
+
+        /// <summary>
+        /// Updates records matching multiple property conditions.
+        /// </summary>
+        /// <typeparam name="TProperty1">The type of the first property</typeparam>
+        /// <typeparam name="TProperty2">The type of the second property</typeparam>
+        /// <param name="model">The model with updated values</param>
+        /// <param name="property1Selector">First property selector</param>
+        /// <param name="value1">First property value to match</param>
+        /// <param name="property2Selector">Second property selector</param>
+        /// <param name="value2">Second property value to match</param>
+        /// <returns>True if the update was successful, false otherwise</returns>
+        public bool UpdateWhere<TProperty1, TProperty2>(
+            TModel model,
+            Expression<Func<TModel, TProperty1>> property1Selector, TProperty1 value1,
+            Expression<Func<TModel, TProperty2>> property2Selector, TProperty2 value2)
+        {
+            string prop1Name = GetPropertyName(property1Selector);
+            string prop2Name = GetPropertyName(property2Selector);
+            string whereClause = $"{prop1Name} = @whereParam0 AND {prop2Name} = @whereParam1";
+            return Update(model, whereClause, new object[] { value1, value2 });
+        }
+
+        /// <summary>
+        /// Updates records matching three property conditions.
+        /// </summary>
+        public bool UpdateWhere<TProperty1, TProperty2, TProperty3>(
+            TModel model,
+            Expression<Func<TModel, TProperty1>> property1Selector, TProperty1 value1,
+            Expression<Func<TModel, TProperty2>> property2Selector, TProperty2 value2,
+            Expression<Func<TModel, TProperty3>> property3Selector, TProperty3 value3)
+        {
+            string prop1Name = GetPropertyName(property1Selector);
+            string prop2Name = GetPropertyName(property2Selector);
+            string prop3Name = GetPropertyName(property3Selector);
+            string whereClause = $"{prop1Name} = @whereParam0 AND {prop2Name} = @whereParam1 AND {prop3Name} = @whereParam2";
+            return Update(model, whereClause, new object[] { value1, value2, value3 });
+        }
+
+        /// <summary>
+        /// Deletes records matching multiple property conditions.
+        /// </summary>
+        /// <typeparam name="TProperty1">The type of the first property</typeparam>
+        /// <typeparam name="TProperty2">The type of the second property</typeparam>
+        /// <param name="property1Selector">First property selector</param>
+        /// <param name="value1">First property value to match</param>
+        /// <param name="property2Selector">Second property selector</param>
+        /// <param name="value2">Second property value to match</param>
+        /// <returns>True if the deletion was successful, false otherwise</returns>
+        public bool DeleteWhere<TProperty1, TProperty2>(
+            Expression<Func<TModel, TProperty1>> property1Selector, TProperty1 value1,
+            Expression<Func<TModel, TProperty2>> property2Selector, TProperty2 value2)
+        {
+            string prop1Name = GetPropertyName(property1Selector);
+            string prop2Name = GetPropertyName(property2Selector);
+            string condition = $"{prop1Name} = @param0 AND {prop2Name} = @param1";
+            return Delete(condition, new object[] { value1, value2 });
+        }
+
+        /// <summary>
+        /// Deletes records matching three property conditions.
+        /// </summary>
+        public bool DeleteWhere<TProperty1, TProperty2, TProperty3>(
+            Expression<Func<TModel, TProperty1>> property1Selector, TProperty1 value1,
+            Expression<Func<TModel, TProperty2>> property2Selector, TProperty2 value2,
+            Expression<Func<TModel, TProperty3>> property3Selector, TProperty3 value3)
+        {
+            string prop1Name = GetPropertyName(property1Selector);
+            string prop2Name = GetPropertyName(property2Selector);
+            string prop3Name = GetPropertyName(property3Selector);
+            string condition = $"{prop1Name} = @param0 AND {prop2Name} = @param1 AND {prop3Name} = @param2";
+            return Delete(condition, new object[] { value1, value2, value3 });
+        }
+
+        /// <summary>
+        /// Deletes records where a property value is in the specified list.
         /// </summary>
         /// <typeparam name="TProperty">The type of the property</typeparam>
-        /// <param name="propertySelector">The property selector expression</param>
-        /// <returns>The name of the property</returns>
-        /// <exception cref="ArgumentException">Thrown when the expression is not a valid property selector</exception>
-        private string GetPropertyName<TProperty>(Expression<Func<TModel, TProperty>> propertySelector)
+        /// <param name="propertySelector">Expression to select the property</param>
+        /// <param name="values">The list of values to match for deletion</param>
+        /// <returns>True if the deletion was successful, false otherwise</returns>
+        public bool DeleteWhereIn<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, IEnumerable<TProperty> values)
+        {
+            var valuesList = values.ToList();
+            if (valuesList.Count == 0)
+                return true; // Nothing to delete
+
+            string propertyName = GetPropertyName(propertySelector);
+            
+            var paramNames = new List<string>();
+            var parameters = new List<object>();
+            for (int i = 0; i < valuesList.Count; i++)
+            {
+                paramNames.Add($"@param{i}");
+                parameters.Add(valuesList[i]);
+            }
+            
+            string condition = $"{propertyName} IN ({string.Join(", ", paramNames)})";
+            return Delete(condition, parameters.ToArray());
+        }
+
+        /// <summary>
+        /// Deletes records where the specified property is null.
+        /// Note: This method uses the base Delete method which requires a non-empty condition.
+        /// </summary>
+        /// <typeparam name="TProperty">The type of the property</typeparam>
+        /// <param name="propertySelector">Expression to select the property</param>
+        /// <returns>True if the deletion was successful, false otherwise</returns>
+        public bool DeleteWhereIsNull<TProperty>(Expression<Func<TModel, TProperty>> propertySelector)
+        {
+            string propertyName = GetPropertyName(propertySelector);
+            string condition = $"{propertyName} IS NULL";
+            // Pass empty array since IS NULL doesn't need parameters
+            return Delete(condition + " AND 1=1", new object[] { });
+        }
+
+        /// <summary>
+        /// Updates all records where the specified property is null.
+        /// Note: This method uses the base Update method which requires a non-empty where clause.
+        /// </summary>
+        /// <typeparam name="TProperty">The type of the property</typeparam>
+        /// <param name="model">The model with updated values</param>
+        /// <param name="propertySelector">Expression to select the property to check for null</param>
+        /// <returns>True if the update was successful, false otherwise</returns>
+        public bool UpdateWhereIsNull<TProperty>(TModel model, Expression<Func<TModel, TProperty>> propertySelector)
+        {
+            string propertyName = GetPropertyName(propertySelector);
+            string whereClause = $"{propertyName} IS NULL";
+            // Pass empty array since IS NULL doesn't need parameters
+            return Update(model, whereClause + " AND 1=1", new object[] { });
+        }
+
+        /// <summary>
+        /// Updates records where a property value is in the specified list.
+        /// </summary>
+        /// <typeparam name="TProperty">The type of the property</typeparam>
+        /// <param name="model">The model with updated values</param>
+        /// <param name="propertySelector">Expression to select the property</param>
+        /// <param name="values">The list of values to match for update</param>
+        /// <returns>True if the update was successful, false otherwise</returns>
+        public bool UpdateWhereIn<TProperty>(TModel model, Expression<Func<TModel, TProperty>> propertySelector, IEnumerable<TProperty> values)
+        {
+            var valuesList = values.ToList();
+            if (valuesList.Count == 0)
+                return true; // Nothing to update
+
+            string propertyName = GetPropertyName(propertySelector);
+            
+            var paramNames = new List<string>();
+            var parameters = new List<object>();
+            for (int i = 0; i < valuesList.Count; i++)
+            {
+                paramNames.Add($"@whereParam{i}");
+                parameters.Add(valuesList[i]);
+            }
+            
+            string whereClause = $"{propertyName} IN ({string.Join(", ", paramNames)})";
+            return Update(model, whereClause, parameters.ToArray());
+        }
+
+        /// <summary>
+        /// Checks if a record exists with the specified property value.
+        /// Alias for AnyByProperty for better readability in CRUD context.
+        /// </summary>
+        /// <typeparam name="TProperty">The type of the property</typeparam>
+        /// <param name="propertySelector">Expression to select the property</param>
+        /// <param name="value">The value to check for</param>
+        /// <returns>True if a record exists with the specified property value, false otherwise</returns>
+        public bool Exists<TProperty>(Expression<Func<TModel, TProperty>> propertySelector, TProperty value)
+        {
+            return AnyByProperty(propertySelector, value);
+        }
+
+        /// <summary>
+        /// Inserts the model if it doesn't exist based on the specified property, otherwise updates it.
+        /// </summary>
+        /// <typeparam name="TProperty">The type of the property</typeparam>
+        /// <param name="model">The model to insert or update</param>
+        /// <param name="propertySelector">Expression to select the property to check for existence</param>
+        /// <returns>True if the operation was successful, false otherwise</returns>
+        public bool InsertOrUpdate<TProperty>(TModel model, Expression<Func<TModel, TProperty>> propertySelector)
+        {
+            var propertyInfo = GetPropertyInfo(propertySelector);
+            var value = (TProperty)propertyInfo.GetValue(model);
+
+            if (Exists(propertySelector, value))
+            {
+                return UpdateByProperty(model, propertySelector, value);
+            }
+            else
+            {
+                return Insert(model);
+            }
+        }
+
+        /// <summary>
+        /// Gets or creates a record. Returns existing record if found by the specified property, otherwise inserts and returns the new record.
+        /// </summary>
+        /// <typeparam name="TProperty">The type of the property</typeparam>
+        /// <param name="model">The model to insert if not found</param>
+        /// <param name="propertySelector">Expression to select the property to check for existence</param>
+        /// <returns>The existing or newly created model instance</returns>
+        public TModel GetOrCreate<TProperty>(TModel model, Expression<Func<TModel, TProperty>> propertySelector)
+        {
+            var propertyInfo = GetPropertyInfo(propertySelector);
+            var value = (TProperty)propertyInfo.GetValue(model);
+
+            var existing = FirstOrDefaultByProperty(propertySelector, value);
+            if (existing != null)
+                return existing;
+
+            Insert(model);
+            return FirstOrDefaultByProperty(propertySelector, value);
+        }
+
+        #endregion
+
+        #region Helper Methods
+
+        /// <summary>
+        /// Extracts the MemberExpression from a property selector expression.
+        /// </summary>
+        private MemberExpression GetMemberExpression<TProperty>(Expression<Func<TModel, TProperty>> propertySelector)
         {
             if (propertySelector == null)
                 throw new ArgumentNullException(nameof(propertySelector));
 
             MemberExpression memberExpression = null;
 
-            if (propertySelector.Body is MemberExpression)
+            if (propertySelector.Body is MemberExpression expr)
             {
-                memberExpression = (MemberExpression)propertySelector.Body;
+                memberExpression = expr;
             }
             else if (propertySelector.Body is UnaryExpression unaryExpression)
             {
@@ -436,7 +670,33 @@ namespace DbTools.Controller
             if (!(memberExpression.Member is PropertyInfo))
                 throw new ArgumentException("Expression must access a property, not a field", nameof(propertySelector));
 
-            return memberExpression.Member.Name;
+            return memberExpression;
         }
+
+        /// <summary>
+        /// Extracts the property name from a property selector expression.
+        /// </summary>
+        /// <typeparam name="TProperty">The type of the property</typeparam>
+        /// <param name="propertySelector">The property selector expression</param>
+        /// <returns>The name of the property</returns>
+        /// <exception cref="ArgumentException">Thrown when the expression is not a valid property selector</exception>
+        private string GetPropertyName<TProperty>(Expression<Func<TModel, TProperty>> propertySelector)
+        {
+            return GetMemberExpression(propertySelector).Member.Name;
+        }
+
+        /// <summary>
+        /// Extracts the PropertyInfo from a property selector expression.
+        /// </summary>
+        /// <typeparam name="TProperty">The type of the property</typeparam>
+        /// <param name="propertySelector">The property selector expression</param>
+        /// <returns>The PropertyInfo of the property</returns>
+        /// <exception cref="ArgumentException">Thrown when the expression is not a valid property selector</exception>
+        private PropertyInfo GetPropertyInfo<TProperty>(Expression<Func<TModel, TProperty>> propertySelector)
+        {
+            return (PropertyInfo)GetMemberExpression(propertySelector).Member;
+        }
+
+        #endregion
     }
 }
