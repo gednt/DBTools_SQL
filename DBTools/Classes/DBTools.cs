@@ -1,15 +1,16 @@
-﻿using DBTools.Model;
+﻿using DbTools.Model;
+using DBTools.Model;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 
-namespace DBToolsDll
+namespace DbTools
 {
     /// <summary>
     /// DBTools is a Sql Library to manipulate data in Sql Databases
     /// </summary>
-    public class DBTools_SQL
+    public class DBTools
     {
         #region private variables
         private string host;
@@ -34,7 +35,7 @@ namespace DBToolsDll
         #endregion
 
         #region public getters and setters
-        public DBTools_SQL()
+        public DBTools()
         {
             //STANDARD TCP/IP Port
             port = "1433";
@@ -170,14 +171,9 @@ namespace DBToolsDll
                 {
                     return _connectionString;
                 }
-                if (port != null)
-                {
-                    _connectionString = String.Format("Server={0},{1};Database={2};User Id={3};Password={4};", host, port, database, uid, password);
-                }
-                else
-                {
-                    _connectionString = String.Format("Server={0};Database={1};User Id={2};Password={3};", host, database, uid, password);
-                }
+
+                _connectionString = String.Format($"Data Source={Host},{Port};Network Library=DBMSSOCN;Initial Catalog={Database};User ID={Uid};Password={Password};");
+
 
                 return _connectionString;
 

@@ -1,12 +1,14 @@
-﻿using System;
+﻿using DBTools_Utilities;
+using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SqlClient;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DBTools.Controller
+namespace DbTools.Controller
 {
     /// <summary>
     /// Generic controller for LINQ-style database manipulation compatible with any model type.
@@ -33,9 +35,9 @@ namespace DBTools.Controller
         /// <param name="port">Database port (default: 1433)</param>
         /// <param name="primaryKeyName">The name of the primary key column (optional)</param>
         /// <param name="autoIncrement">Whether the primary key is auto-incremented (default: true)</param>
-        public UtilsController(string host, string database, string uid, string password, string tableName, string port = "1433", string primaryKeyName = "", bool autoIncrement = true)
+        public UtilsController(string tableName, string primaryKeyName = "", bool autoIncrement = true)
         {
-            _utils = new DBTools_Utilities.Utils(host, database, uid, password, port);
+            _utils = new DBTools_Utilities.Utils();
             _tableName = tableName;
             _primaryKeyName = primaryKeyName;
             _autoIncrement = autoIncrement;
@@ -56,38 +58,17 @@ namespace DBTools.Controller
             _autoIncrement = autoIncrement;
         }
 
-        /// <summary>
-        /// Selects all records from the table and maps them to model instances.
-        /// This is a LINQ-style operation that returns IEnumerable for deferred execution.
-        /// </summary>
-        /// <returns>An enumerable collection of TModel instances</returns>
-        public IEnumerable<TModel> Select()
-        {
-            return Select("");
-        }
 
         /// <summary>
         /// Selects records from the table based on conditions and maps them to model instances.
         /// This is a LINQ-style operation that returns IEnumerable for deferred execution.
         /// </summary>
-        /// <param name="conditions">WHERE clause conditions (e.g., "Age > 18 AND Active = 1")</param>
+        /// <param name="conditions">WHERE clause conditions (e.g., "Age > @param0 AND Active = @param1")</param>
         /// <returns>An enumerable collection of TModel instances</returns>
-        public IEnumerable<TModel> Select(string conditions)
+        public IEnumerable<TModel> Select(string conditionsParametrized, IEnumerable<object> parameters )
         {
-            DataView dataView = _utils.Select("*", _tableName, conditions);
+            DataView dataView = _utils.Select("*", _tableName, conditionsParametrized, parameters.ToArray());
             return MapDataViewToModels(dataView);
-        }
-
-        /// <summary>
-        /// Selects records from the table based on a predicate function.
-        /// This provides LINQ-style filtering capability.
-        /// Note: This loads all records first, then filters in memory. For large datasets, use the string-based Select with SQL conditions.
-        /// </summary>
-        /// <param name="predicate">A function to filter the records</param>
-        /// <returns>An enumerable collection of filtered TModel instances</returns>
-        public IEnumerable<TModel> Where(Func<TModel, bool> predicate)
-        {
-            return Select().Where(predicate);
         }
 
         /// <summary>
@@ -103,7 +84,57 @@ namespace DBTools.Controller
                 return false;
 
             var genericObj = genericObjects[0];
-            return _utils.Insert(genericObj.columns, _tableName, genericObj.valuesString);
+            return _utils.Insert(genericObj.columns, _tableName, genericObj.values, _primaryKeyName, _autoIncrement);
+        }
+
+        ///<summary>
+        ///Inserts a list of model instances into the database.
+        ///</summary>
+        public bool InsertRange(IEnumerable<TModel> models)
+        {
+            //Creates a list of sql insert statements
+            //And then executes them in a transaction
+            var sqlStatements = new List<string>();
+            var rollbackStatements = new List<string>();
+            List<IEnumerable<SqlParameter>> sqlParameters = new List<IEnumerable<SqlParameter>>();
+            foreach (var model in models)
+            {
+                var genericObjects = _utils.QueryBuilder(model, _primaryKeyName, _autoIncrement);
+                if (genericObjects == null || genericObjects.Count == 0)
+                    continue;
+                var genericObj = genericObjects[0];
+   
+
+
+                string sql = Utils.Insert_Query(genericObj.columns, _tableName, genericObj.valuesString, "Id", true) + ";";
+                sqlParameters.Add(Utils.GenerateSqlParameters(genericObj.values));
+                sqlStatements.Add(sql);
+            }
+
+            for (var cont = 0; cont < sqlStatements.Count;cont++)
+            {
+                _utils.Query = sqlStatements[cont];
+                _utils.SqlParameters = sqlParameters[cont].ToList();
+                _utils.ExecuteQuery(sqlStatements[cont]);
+            }
+
+            if (_utils.Error != null)
+            {
+                for (var cont = 0; cont < sqlStatements.Count; cont++)
+                {
+                    _utils.Query = sqlStatements[cont];
+                    _utils.SqlParameters = sqlParameters[cont].ToList();
+                    _utils.ExecuteQuery(sqlStatements[cont]);
+                }
+            }
+            if (String.IsNullOrEmpty(_utils.Error))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
 
         /// <summary>
@@ -131,12 +162,12 @@ namespace DBTools.Controller
         /// </summary>
         /// <param name="conditions">WHERE clause conditions to identify which records to delete (required for security)</param>
         /// <returns>True if the deletion was successful, false otherwise</returns>
-        public bool Delete(string conditions)
+        public bool Delete(string conditions, object[] parameters)
         {
             if (string.IsNullOrEmpty(conditions))
                 throw new ArgumentException("Conditions are required for DELETE operations for security reasons.", nameof(conditions));
 
-            return _utils.Delete(_tableName, conditions);
+            return _utils.Delete(_tableName, conditions, parameters);
         }
 
         /// <summary>
@@ -144,77 +175,9 @@ namespace DBTools.Controller
         /// </summary>
         /// <param name="conditions">WHERE clause conditions (optional)</param>
         /// <returns>The first matching model instance or null if not found</returns>
-        public TModel FirstOrDefault(string conditions = "")
+        public TModel FirstOrDefault(string conditions = "", object[] parameters = null)
         {
-            return Select(conditions).FirstOrDefault();
-        }
-
-        /// <summary>
-        /// Gets the first record that matches the predicate.
-        /// Note: This loads all records first, then filters in memory. For large datasets, use the string-based FirstOrDefault.
-        /// </summary>
-        /// <param name="predicate">A function to filter the records</param>
-        /// <returns>The first matching model instance or null if not found</returns>
-        public TModel FirstOrDefault(Func<TModel, bool> predicate)
-        {
-            return Select().FirstOrDefault(predicate);
-        }
-
-        /// <summary>
-        /// Gets all records from the table as a list.
-        /// </summary>
-        /// <returns>A list of all model instances</returns>
-        public List<TModel> ToList()
-        {
-            return Select().ToList();
-        }
-
-        /// <summary>
-        /// Gets all records that match the conditions as a list.
-        /// </summary>
-        /// <param name="conditions">WHERE clause conditions</param>
-        /// <returns>A list of matching model instances</returns>
-        public List<TModel> ToList(string conditions)
-        {
-            return Select(conditions).ToList();
-        }
-
-        /// <summary>
-        /// Counts the number of records that match the conditions using a database-level COUNT query for efficiency.
-        /// </summary>
-        /// <param name="conditions">WHERE clause conditions (optional)</param>
-        /// <returns>The count of matching records</returns>
-        public int Count(string conditions = "")
-        {
-            // Use database-level COUNT for better performance
-            DataView result = _utils.Select("COUNT(*) AS RecordCount", _tableName, conditions);
-            if (result != null && result.Count > 0)
-            {
-                return Convert.ToInt32(result[0]["RecordCount"]);
-            }
-            return 0;
-        }
-
-        /// <summary>
-        /// Checks if any records exist that match the conditions using a database-level query for efficiency.
-        /// </summary>
-        /// <param name="conditions">WHERE clause conditions (optional)</param>
-        /// <returns>True if any matching records exist, false otherwise</returns>
-        public bool Any(string conditions = "")
-        {
-            // Use database-level COUNT for better performance
-            return Count(conditions) > 0;
-        }
-
-        /// <summary>
-        /// Checks if any records exist that match the predicate.
-        /// Note: This loads all records first, then filters in memory. For large datasets, use the string-based Any.
-        /// </summary>
-        /// <param name="predicate">A function to filter the records</param>
-        /// <returns>True if any matching records exist, false otherwise</returns>
-        public bool Any(Func<TModel, bool> predicate)
-        {
-            return Select().Any(predicate);
+            return Select(conditions,parameters).FirstOrDefault();
         }
 
         /// <summary>
@@ -255,7 +218,7 @@ namespace DBTools.Controller
                                 // Handle type conversion
                                 if (property.PropertyType != value.GetType())
                                 {
-                                    if (property.PropertyType.IsGenericType && 
+                                    if (property.PropertyType.IsGenericType &&
                                         property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
                                     {
                                         // Handle nullable types

@@ -1,0 +1,16 @@
+{
+  "exclude": [
+    "**/bin",
+    "**/bower_components",
+    "**/jspm_packages",
+    "**/node_modules",
+    "**/obj",
+    "**/platforms"
+  ],
+  "Host": "127.0.0.1",
+  "Password": "123456",
+  "Uid": "testUser",
+  "Database": "testDB",
+  "Port": "1433",
+  "ServerType": "MSSQL"
+}
