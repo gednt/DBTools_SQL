@@ -388,13 +388,16 @@ namespace DBTools_Utilities
             {
                 if (String.IsNullOrEmpty(primary_key_name))
                 {
-                    throw new ArgumentException("Primary key name must be provided when auto_increment is false.", nameof(primary_key_name));
-                }
+            if (auto_increment.Equals(true))
+            {
                 var fieldsToLower = Array.ConvertAll(_fields, field => field.ToLower());
-                int index_of_primary_key = Array.IndexOf(fieldsToLower, primary_key_name, 0);
-                //Excludes the primary_key name if it is filled and the corresponding value
-                _values = Array.FindAll(_values, value => value != _values[index_of_primary_key]);
-                _fields = Array.FindAll(_fields, field => field != _fields[index_of_primary_key]);
+                int index_of_primary_key = Array.IndexOf(fieldsToLower, primary_key_name.ToLower(), 0);
+                // Excludes the primary_key name and the corresponding value when the primary key is auto-incremented
+                if (index_of_primary_key >= 0)
+                {
+                    _values = _values.Where((value, index) => index != index_of_primary_key).ToArray();
+                    _fields = _fields.Where((field, index) => index != index_of_primary_key).ToArray();
+                }
             }
             // Validate field names to prevent SQL injection
             foreach (var field in _fields)
