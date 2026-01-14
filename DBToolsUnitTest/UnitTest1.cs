@@ -1436,7 +1436,7 @@ namespace DBToolsUnitTest
                     try
                     {
                         string updateQuery = Utils.Update_Query(fields, tableName, values, "id = 1; DROP TABLE Users--");
-                        updateQuery.Contains("; DROP TABLE");
+                        Assert.IsFalse(updateQuery.Contains("; DROP TABLE"), "Update query contains potential SQL injection pattern.");
                     }
                     catch (Exception e)
                     {
