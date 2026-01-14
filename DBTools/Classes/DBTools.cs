@@ -157,7 +157,7 @@ namespace DbTools
             }
         }
         /// <summary>
-        /// Specify the port of the database: Standard 3306
+        /// Specify the port of the database: Standard 1433
         ///
         /// </summary>
         public string Port { get => port; set => port = value; }
