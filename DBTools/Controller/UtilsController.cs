@@ -224,7 +224,7 @@ namespace DbTools.Controller
         /// <returns>The number of records matching the conditions</returns>
         public int Count(string conditions = "", object[] parameters = null)
         {
-            DataView dataView = _utils.Select("COUNT(*) AS RecordCount", _tableName, conditions, parameters ?? new object[] { });
+            DataView dataView = _utils.Select("COUNT(1) AS RecordCount", _tableName, conditions, parameters ?? new object[] { });
             if (dataView != null && dataView.Count > 0)
             {
                 return Convert.ToInt32(dataView[0]["RecordCount"]);
