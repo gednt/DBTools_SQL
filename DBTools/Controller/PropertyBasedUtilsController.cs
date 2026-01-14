@@ -387,12 +387,12 @@ namespace DbTools.Controller
                     continue;
                 
                 // Skip default values for value types
-                var defaultValue = property.PropertyType.IsValueType 
-                    ? Activator.CreateInstance(property.PropertyType) 
-                    : null;
-                
-                if (value.Equals(defaultValue))
-                    continue;
+                if (property.PropertyType.IsValueType)
+                {
+                    var defaultValue = Activator.CreateInstance(property.PropertyType);
+                    if (defaultValue != null && value.Equals(defaultValue))
+                        continue;
+                }
 
                 conditions.Add($"{property.Name} = @param{paramIndex}");
                 parameters.Add(value);
