@@ -172,7 +172,7 @@ namespace DbTools
                     return _connectionString;
                 }
 
-                _connectionString = String.Format($"Data Source=tcp:{Host},{Port};Initial Catalog={Database};User ID={Uid};Password={Password};");
+                _connectionString = $"Data Source=tcp:{Host},{Port};Initial Catalog={Database};User ID={Uid};Password={Password};";
 
 
                 return _connectionString;
