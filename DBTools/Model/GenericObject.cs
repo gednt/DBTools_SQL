@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace DbTools.Model
+namespace DBTools.Model
 {
     public class GenericObject
     {
