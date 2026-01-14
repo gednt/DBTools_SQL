@@ -198,11 +198,12 @@ namespace DbTools.Controller
         /// <summary>
         /// Gets the first record that matches the conditions.
         /// </summary>
-        /// <param name="conditions">WHERE clause conditions (optional)</param>
+        /// <param name="conditions">WHERE clause conditions (optional, empty for all records)</param>
+        /// <param name="parameters">Array of parameter values corresponding to the placeholders in conditions</param>
         /// <returns>The first matching model instance or null if not found</returns>
         public TModel FirstOrDefault(string conditions = "", object[] parameters = null)
         {
-            return Select(conditions,parameters).FirstOrDefault();
+            return Select(conditions, parameters ?? new object[] { }).FirstOrDefault();
         }
 
         /// <summary>
@@ -286,8 +287,9 @@ namespace DbTools.Controller
         /// <summary>
         /// Gets a single record that matches the conditions, or null if no records match.
         /// Throws an exception if more than one record matches.
+        /// When called without conditions, returns the only record in the table or throws if there are multiple records.
         /// </summary>
-        /// <param name="conditions">WHERE clause conditions</param>
+        /// <param name="conditions">WHERE clause conditions (optional, empty to check if table has exactly one record)</param>
         /// <param name="parameters">Array of parameter values corresponding to the placeholders in conditions</param>
         /// <returns>The single matching model instance, or null if no match</returns>
         /// <exception cref="InvalidOperationException">Thrown when more than one record matches the conditions</exception>
