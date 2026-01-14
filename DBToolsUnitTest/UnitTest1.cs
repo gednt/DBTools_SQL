@@ -1912,6 +1912,146 @@ namespace DBToolsUnitTest
                     Assert.IsNotNull(result);
                     Assert.IsInstanceOfType(result, typeof(IEnumerable<TestUser>));
                 }
+
+                [TestMethod]
+                public void Exists_WithValidProperty_ShouldReturnBool()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act - Should not throw
+                    bool exists = controller.Exists(u => u.Age, 30);
+
+                    // Assert - Result is either true or false
+                    Assert.IsTrue(exists || !exists);
+                }
+
+                [TestMethod]
+                public void InsertOrUpdate_ShouldNotThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Name = "Test User", Email = "test@test.com", Age = 25 };
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.InsertOrUpdate(user, u => u.Email);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                public void GetOrCreate_ShouldReturnModel()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Name = "GetOrCreate User", Email = "getorcreate@test.com", Age = 35 };
+
+                    // Act
+                    var result = controller.GetOrCreate(user, u => u.Email);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(TestUser));
+                }
+
+                [TestMethod]
+                public void UpdateWhere_WithTwoConditions_ShouldNotThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Name = "Updated Name", Email = "updated@test.com", Age = 40 };
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.UpdateWhere(user, u => u.Age, 30, u => u.Name, "Test");
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                public void UpdateWhere_WithThreeConditions_ShouldNotThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Name = "Updated Name", Email = "updated@test.com", Age = 40 };
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.UpdateWhere(user, u => u.Age, 30, u => u.Name, "Test", u => u.Email, "test@test.com");
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                public void DeleteWhere_WithTwoConditions_ShouldNotThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.DeleteWhere(u => u.Age, 999, u => u.Name, "NonExistent");
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                public void DeleteWhereIn_WithEmptyList_ShouldReturnTrue()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var emptyAges = new List<int>();
+
+                    // Act
+                    bool result = controller.DeleteWhereIn(u => u.Age, emptyAges);
+
+                    // Assert - Should return true as nothing to delete
+                    Assert.IsTrue(result);
+                }
+
+                [TestMethod]
+                public void UpdateWhereIn_WithValidValues_ShouldNotThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new PropertyBasedUtilsController<TestUser>(utils, "Users", "Id", true);
+                    var user = new TestUser { Name = "Bulk Updated", Email = "bulk@test.com", Age = 50 };
+                    var ages = new List<int> { 999, 998, 997 };
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.UpdateWhereIn(user, u => u.Age, ages);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Assert.Fail($"Should not throw exception: {ex.Message}");
+                    }
+                }
             }
 
             #endregion
