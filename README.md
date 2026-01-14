@@ -38,11 +38,6 @@ A robust .NET Framework library for SQL Server database operations with built-in
 
 ## Installation
 
-### Via NuGet (if published)
-```bash
-Install-Package DBTools_SQL
-```
-
 ### Via Source
 1. Clone the repository:
 ```bash
