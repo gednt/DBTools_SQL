@@ -40,9 +40,5 @@ namespace DBTools.Model
             return dbTools.Update(columns, table, valuesString, conditions);
         }
 
-        public bool Delete(string conditions)
-        {
-            return dbTools.Delete(table, conditions);
-        }
     }
 }

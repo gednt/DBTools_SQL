@@ -6,10 +6,12 @@ using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using DBTools.Model;
+using DbTools.Interfaces;
 
 namespace DbTools.Controller
 {
-    public class DBToolsController : Interfaces.IDBTools
+    public class DBToolsController : IDBTools
     {
         public DbTools.DBTools DBTools = new DbTools.DBTools();
 
