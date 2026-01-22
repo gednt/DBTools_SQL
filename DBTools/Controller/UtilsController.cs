@@ -326,7 +326,8 @@ namespace DbTools.Controller
                 var model = new TModel();
                 foreach (DataColumn column in dataView.Table.Columns)
                 {
-                    if (properties.TryGetValue(column.ColumnName, out PropertyInfo property))
+                    var normalizedColumnName = column.ColumnName.Replace("_", "").ToLower();
+                    if (properties.TryGetValue(normalizedColumnName, out PropertyInfo property))
                     {
                         try
                         {
