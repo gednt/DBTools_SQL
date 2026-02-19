@@ -5,12 +5,13 @@ Comprehensive code examples for DBTools_SQL library.
 ## Table of Contents
 
 1. [Basic Operations](#basic-operations)
-2. [LINQ-Style Queries (PropertyBasedUtilsController)](#linq-style-queries-propertybasedutilscontroller)
-3. [Advanced Queries](#advanced-queries)
-4. [Real-World Applications](#real-world-applications)
-5. [Data Export](#data-export)
-6. [Error Handling](#error-handling)
-7. [Performance Optimization](#performance-optimization)
+2. [LINQ Expression Queries (UtilsController)](#linq-expression-queries-utilscontroller)
+3. [LINQ-Style Queries (PropertyBasedUtilsController)](#linq-style-queries-propertybasedutilscontroller)
+4. [Advanced Queries](#advanced-queries)
+5. [Real-World Applications](#real-world-applications)
+6. [Data Export](#data-export)
+7. [Error Handling](#error-handling)
+8. [Performance Optimization](#performance-optimization)
 
 ---
 
@@ -174,6 +175,101 @@ class Program
     }
 }
 ```
+
+---
+
+## LINQ Expression Queries (UtilsController)
+
+### Example 13: LINQ Expression-Based Queries (MySQLDBTools-compatible)
+
+The `UtilsController<TModel>` follows the same LINQ standards as MySQLDBTools, supporting full lambda expression predicates.
+
+```csharp
+using DbTools.Controller;
+using System;
+using System.Linq;
+
+public class User
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Email { get; set; }
+    public int Age { get; set; }
+    public string Status { get; set; }
+}
+
+class Program
+{
+    static void Main()
+    {
+        var userController = new UtilsController<User>("Users", "Id");
+
+        // GET ALL: Retrieve all records
+        var allUsers = userController.GetAll();
+        Console.WriteLine($"Total users: {allUsers.Count}");
+
+        // WHERE: Lambda expression filtering
+        var adults = userController.Where(u => u.Age > 18);
+        var activeAdults = userController.Where(u => u.Age > 18 && u.Status == "active");
+        var multipleNames = userController.Where(u => u.Name == "John" || u.Name == "Jane");
+
+        // FIRST: Get first match or null
+        var firstAdult = userController.FirstOrDefault(u => u.Age > 18);
+        var notFound = userController.FirstOrDefault(u => u.Id == -1); // returns null
+
+        // SINGLE: Get exactly one match (throws if multiple)
+        var uniqueUser = userController.SingleOrDefault(u => u.Id == 1);
+
+        // EXISTS: Check if any records match
+        bool hasAdults = userController.Any(u => u.Age >= 18);
+
+        // COUNT: Count matching records
+        int adultCount = userController.Count(u => u.Age >= 18);
+        int totalCount = userController.Count(); // all records
+
+        // QUERYABLE: Use IQueryable for advanced LINQ operations
+        var sortedUsers = userController.AsQueryable()
+            .Where(u => u.Age > 18)
+            .OrderBy(u => u.Name)
+            .Take(10)
+            .ToList();
+
+        // ADD: Insert new record (MySQLDBTools-compatible name)
+        var newUser = new User { Name = "Alice Smith", Email = "alice@example.com", Age = 28, Status = "active" };
+        bool added = userController.Add(newUser);
+
+        // UPDATE: Update by lambda expression
+        var updated = new User { Name = "Alice Jones", Email = "alice.jones@example.com", Age = 29, Status = "active" };
+        bool updateSuccess = userController.Update(updated, u => u.Name == "Alice Smith");
+
+        // SAVE CHANGES: Update using primary key
+        var existingUser = userController.FirstOrDefault(u => u.Id == 1);
+        if (existingUser != null)
+        {
+            existingUser.Status = "inactive";
+            bool saved = userController.SaveChanges(existingUser);
+        }
+
+        // REMOVE: Delete by lambda expression (MySQLDBTools-compatible name)
+        bool deleted = userController.Remove(u => u.Id == 1);
+        bool deletedInactive = userController.Remove(u => u.Status == "inactive");
+    }
+}
+```
+
+#### Supported Expression Operators
+
+| Operator | Example | SQL |
+|----------|---------|-----|
+| `==` | `u => u.Name == "John"` | `Name = @param0` |
+| `!=` | `u => u.Status != "deleted"` | `Status != @param0` |
+| `>` | `u => u.Age > 18` | `Age > @param0` |
+| `>=` | `u => u.Age >= 18` | `Age >= @param0` |
+| `<` | `u => u.Age < 65` | `Age < @param0` |
+| `<=` | `u => u.Age <= 65` | `Age <= @param0` |
+| `&&` | `u => u.Age > 18 && u.Active == true` | `(Age > @param0) AND (Active = @param1)` |
+| `||` | `u => u.Name == "A" || u.Name == "B"` | `(Name = @param0) OR (Name = @param1)` |
+| `!` | `u => !(u.Age > 65)` | `NOT (Age > @param0)` |
 
 ---
 

@@ -216,24 +216,23 @@ bool success = dbUtils.Update(
 );
 ```
 
-**LINQ-Style Approach:**
+**LINQ-Style Approach (Recommended - MySQLDBTools-compatible standard):**
 ```csharp
-var userController = new PropertyBasedUtilsController<User>("Users", "Id");
+var userController = new UtilsController<User>("Users", "Id");
 
-var user = userController.FirstOrDefaultByProperty(u => u.Id, 5);
+// Lambda expression queries - same standard as MySQLDBTools
+var user = userController.FirstOrDefault(u => u.Id == 5);
 user.Email = "johnsmith@example.com";
+
+// Update by lambda predicate
+bool success = userController.Update(user, u => u.Id == 5);
+
+// Or save changes by primary key
 user.Username = "john_smith";
+userController.SaveChanges(user);
 
-// Update by property
-bool success = userController.UpdateByProperty(user, u => u.Id, 5);
-
-// Or update where multiple conditions match
-userController.UpdateWhere(user,
-    u => u.Status, "active",
-    u => u.Age, 25);
-
-// Insert or update (upsert)
-userController.InsertOrUpdate(user, u => u.Username);
+// Remove by lambda predicate
+userController.Remove(u => u.Status == "inactive");
 ```
 
 **Parameterized Update (Recommended):**
@@ -339,16 +338,95 @@ Mouse,29.99,2024-01-16 14:20:00
 
 ---
 
+## UtilsController - LINQ Expression Queries (MySQLDBTools-compatible)
+
+The `UtilsController<TModel>` follows the same LINQ standards as MySQLDBTools, supporting full lambda expression predicates similar to Entity Framework's LINQ queries.
+
+### Why Use UtilsController?
+
+? **LINQ Lambda Expressions**: Write `Where(u => u.Age > 18)` instead of `"Age > @param0"`  
+? **Type Safety**: Compile-time checking for conditions  
+? **MySQLDBTools Compatibility**: Same LINQ API across SQL Server and MySQL  
+? **Familiar API**: Methods like `Add()`, `Remove()`, `SaveChanges()`, `GetAll()`, `AsQueryable()`  
+? **Expression Support**: `==`, `!=`, `>`, `>=`, `<`, `<=`, `&&`, `||`, `!`
+
+### Setup
+
+```csharp
+using DbTools.Controller;
+
+public class User
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Email { get; set; }
+    public int Age { get; set; }
+    public string Status { get; set; }
+}
+
+var userController = new UtilsController<User>(
+    tableName: "Users",
+    primaryKeyName: "Id",
+    autoIncrement: true
+);
+```
+
+### LINQ Methods
+
+```csharp
+// Get all records
+var allUsers = userController.GetAll();
+
+// Filter with lambda
+var adults = userController.Where(u => u.Age > 18);
+var activeAdults = userController.Where(u => u.Age > 18 && u.Status == "active");
+
+// Get first match
+var user = userController.FirstOrDefault(u => u.Id == 1);
+
+// Get single match (throws if multiple)
+var unique = userController.SingleOrDefault(u => u.Id == 1);
+
+// Check existence
+bool exists = userController.Any(u => u.Name == "John");
+
+// Count matches
+int count = userController.Count(u => u.Age > 18);
+
+// LINQ chaining via AsQueryable
+var sorted = userController.AsQueryable()
+    .Where(u => u.Age > 18)
+    .OrderBy(u => u.Name)
+    .Take(10)
+    .ToList();
+
+// Add (insert)
+bool added = userController.Add(new User { Name = "Alice", Email = "alice@example.com", Age = 28 });
+
+// Update with lambda predicate
+bool updated = userController.Update(updatedUser, u => u.Id == 1);
+
+// Save changes by primary key
+var existing = userController.FirstOrDefault(u => u.Id == 1);
+existing.Status = "active";
+bool saved = userController.SaveChanges(existing);
+
+// Remove (delete) with lambda predicate
+bool deleted = userController.Remove(u => u.Id == 1);
+```
+
+---
+
 ## PropertyBasedUtilsController - LINQ-Style Queries
 
-The `PropertyBasedUtilsController<TModel>` provides a modern, type-safe way to interact with your database using lambda expressions, similar to Entity Framework's LINQ queries.
+The `PropertyBasedUtilsController<TModel>` provides additional property-selector operations extending `UtilsController<TModel>`.
 
 ### Why Use PropertyBasedUtilsController?
 
+? **Extended Operations**: `WhereContains`, `WhereIn`, `WhereBetween`, `WhereIsNull`, etc.  
 ? **Type Safety**: Compile-time checking for property names  
 ? **IntelliSense Support**: IDE autocomplete for properties  
 ? **Cleaner Code**: More readable and maintainable queries  
-? **Less Error-Prone**: No string-based column names  
 ? **Refactoring-Friendly**: Rename properties safely with IDE refactoring tools  
 
 ### Setup
