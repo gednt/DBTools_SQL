@@ -5,13 +5,13 @@ Complete API documentation for the DBTools_SQL library.
 ## Table of Contents
 
 1. [Utils Class](#utils-class)
-2. [PropertyBasedUtilsController Class](#propertybasedutilscontroller-class)
-3. [DBTools Class](#dbtools-class)
-4. [GenericObject Class](#genericobject-class)
-5. [DataExport Class](#dataexport-class)
-6. [Controllers](#controllers)
-7. [Interfaces](#interfaces)
-8. [Models](#models)
+2. [UtilsController Class](#utilscontroller-class)
+3. [PropertyBasedUtilsController Class](#propertybasedutilscontroller-class)
+4. [DBTools Class](#dbtools-class)
+5. [GenericObject Class](#genericobject-class)
+6. [DataExport Class](#dataexport-class)
+7. [Controllers](#controllers)
+8. [Interfaces](#interfaces)
 
 ---
 
@@ -1225,8 +1225,17 @@ Object
 ```
 
 All methods from `UtilsController<TModel>` are available, including:
-- `All()` - Get all records
-- `GetById(object id)` - Get by primary key
+- `GetAll()` - Get all records
+- `Add(TModel entity)` - Insert record (LINQ standard name)
+- `Where(predicate)` - Filter with lambda expression (LINQ standard)
+- `FirstOrDefault(predicate)` - Get first match (LINQ standard)
+- `SingleOrDefault(predicate)` - Get single match (LINQ standard)
+- `Any(predicate)` - Check existence (LINQ standard)
+- `Count(predicate)` - Count matches (LINQ standard)
+- `Update(model, predicate)` - Update records by lambda (LINQ standard)
+- `Remove(predicate)` - Delete records by lambda (LINQ standard)
+- `SaveChanges(entity)` - Save entity changes by primary key (LINQ standard)
+- `AsQueryable()` - Get IQueryable for LINQ chaining
 - `Insert(TModel model)` - Insert record
 - `Update(TModel model, string whereClause, object[] parameters)` - Update records
 - `Delete(string whereClause, object[] parameters)` - Delete records
@@ -1503,11 +1512,272 @@ void SqlExecuteQuery(string query = "")
 
 ### UtilsController
 
-**Namespace**: `DBTools_Utilities.Controller`
+**Namespace**: `DbTools.Controller`  
+**Generic Type**: `UtilsController<TModel>` where TModel : class, new()
 
-Controller wrapper for Utils operations.
+Generic controller for LINQ-style database manipulation compatible with any model type. Provides Entity Framework-like CRUD operations using both string-based conditions and LINQ lambda expressions.
+
+#### Constructors
+
+##### `UtilsController(string tableName, string primaryKeyName = "", bool autoIncrement = true)`
+
+Initializes a new instance loading connection settings from `config.json`.
+
+**Parameters:**
+- `tableName` (string) - The name of the database table
+- `primaryKeyName` (string, optional) - The name of the primary key column
+- `autoIncrement` (bool, optional) - Whether the primary key is auto-incremented (default: true)
+
+##### `UtilsController(Utils utils, string tableName, string primaryKeyName = "", bool autoIncrement = true)`
+
+Initializes a new instance with an existing Utils instance.
+
+**Parameters:**
+- `utils` (Utils) - An existing Utils instance with database connection configured
+- `tableName` (string) - The name of the database table
+- `primaryKeyName` (string, optional) - The name of the primary key column
+- `autoIncrement` (bool, optional) - Whether the primary key is auto-incremented (default: true)
+
+#### LINQ Expression Methods
+
+These methods follow the same LINQ standards as MySQLDBTools, accepting lambda expressions for type-safe queries.
+
+##### `GetAll()`
+
+Returns all records from the table as a `List<TModel>`.
+
+**Returns:** `List<TModel>` - All records
+
+**Example:**
+```csharp
+var allUsers = userController.GetAll();
+```
 
 ---
+
+##### `AsQueryable()`
+
+Returns all records as `IQueryable<TModel>` for advanced LINQ chaining (OrderBy, Skip, Take, etc.).
+
+**Returns:** `IQueryable<TModel>`
+
+**Example:**
+```csharp
+var sorted = userController.AsQueryable()
+    .Where(u => u.Age > 18)
+    .OrderBy(u => u.Name)
+    .ToList();
+```
+
+---
+
+##### `Add(TModel entity)`
+
+Inserts a new record into the database. Alias for `Insert(TModel)` following LINQ naming conventions.
+
+**Parameters:**
+- `entity` (TModel) - The model instance to insert
+
+**Returns:** `bool` - True if insertion was successful
+
+**Example:**
+```csharp
+var user = new User { Name = "John Doe", Email = "john@example.com", Age = 30 };
+bool success = userController.Add(user);
+```
+
+---
+
+##### `Where(Expression<Func<TModel, bool>> predicate)`
+
+Filters records using a LINQ lambda expression. Supports `==`, `!=`, `>`, `>=`, `<`, `<=`, `&&` (AND), `||` (OR), and `!` (NOT).
+
+**Parameters:**
+- `predicate` - A lambda expression representing the WHERE condition
+
+**Returns:** `List<TModel>` - Matching records
+
+**Example:**
+```csharp
+// Single condition
+var adults = userController.Where(u => u.Age > 18);
+
+// Multiple conditions (AND)
+var filtered = userController.Where(u => u.Age > 18 && u.Age < 65);
+
+// OR condition
+var specific = userController.Where(u => u.Name == "John" || u.Name == "Jane");
+```
+
+---
+
+##### `FirstOrDefault(Expression<Func<TModel, bool>> predicate)`
+
+Gets the first record matching the predicate, or `null` if not found.
+
+**Parameters:**
+- `predicate` - A lambda expression representing the WHERE condition
+
+**Returns:** `TModel` - First matching record, or `null`
+
+**Example:**
+```csharp
+var user = userController.FirstOrDefault(u => u.Id == 1);
+var john = userController.FirstOrDefault(u => u.Name == "John Doe");
+```
+
+---
+
+##### `SingleOrDefault(Expression<Func<TModel, bool>> predicate)`
+
+Gets a single record matching the predicate, or `null` if no records match. Throws `InvalidOperationException` if more than one record matches.
+
+**Parameters:**
+- `predicate` - A lambda expression representing the WHERE condition
+
+**Returns:** `TModel` - Single matching record, or `null`
+
+**Throws:** `InvalidOperationException` - When more than one record matches
+
+**Example:**
+```csharp
+var user = userController.SingleOrDefault(u => u.Id == 1);
+```
+
+---
+
+##### `Any(Expression<Func<TModel, bool>> predicate)`
+
+Checks if any records exist that match the specified predicate.
+
+**Parameters:**
+- `predicate` - A lambda expression representing the WHERE condition
+
+**Returns:** `bool` - True if any matching records exist
+
+**Example:**
+```csharp
+bool hasAdults = userController.Any(u => u.Age >= 18);
+```
+
+---
+
+##### `Count(Expression<Func<TModel, bool>> predicate)`
+
+Counts records matching the specified predicate.
+
+**Parameters:**
+- `predicate` - A lambda expression representing the WHERE condition
+
+**Returns:** `int` - Count of matching records
+
+**Example:**
+```csharp
+int adultCount = userController.Count(u => u.Age >= 18);
+int allCount = userController.Count(); // uses string-based Count("", null) with no conditions
+```
+
+---
+
+##### `Update(TModel model, Expression<Func<TModel, bool>> predicate)`
+
+Updates records identified by a LINQ lambda expression.
+
+**Parameters:**
+- `model` (TModel) - The model instance with updated values
+- `predicate` - A lambda expression identifying which records to update
+
+**Returns:** `bool` - True if update was successful
+
+**Throws:** `ArgumentException` - When the predicate produces an empty WHERE clause
+
+**Example:**
+```csharp
+var updatedUser = new User { Name = "Jane Doe", Email = "jane@example.com", Age = 31 };
+bool success = userController.Update(updatedUser, u => u.Id == 1);
+```
+
+---
+
+##### `Remove(Expression<Func<TModel, bool>> predicate)`
+
+Deletes records matching the specified LINQ lambda expression.
+
+**Parameters:**
+- `predicate` - A lambda expression identifying which records to delete
+
+**Returns:** `bool` - True if deletion was successful
+
+**Throws:** `ArgumentException` - When the predicate produces an empty WHERE clause
+
+**Example:**
+```csharp
+bool deleted = userController.Remove(u => u.Id == 1);
+bool deletedOld = userController.Remove(u => u.CreatedDate < DateTime.Now.AddYears(-1));
+```
+
+---
+
+##### `SaveChanges(TModel entity)`
+
+Saves changes to an entity by updating the record identified by its primary key. Requires the primary key name to be specified in the constructor.
+
+**Parameters:**
+- `entity` (TModel) - The model instance with updated values; its primary key property identifies the record
+
+**Returns:** `bool` - True if update was successful
+
+**Throws:**
+- `InvalidOperationException` - When primary key name is not specified in the constructor
+- `InvalidOperationException` - When the primary key property is not found on the model type
+- `InvalidOperationException` - When the primary key value is null
+
+**Example:**
+```csharp
+var user = userController.FirstOrDefault(u => u.Id == 1);
+if (user != null)
+{
+    user.Name = "Updated Name";
+    bool saved = userController.SaveChanges(user);
+}
+```
+
+#### String-Based Methods (legacy)
+
+These methods use string conditions and are still available for complex or custom WHERE clauses.
+
+```csharp
+IEnumerable<TModel> Select(string conditionsParametrized, IEnumerable<object> parameters)
+IEnumerable<TModel> Where(string conditions, object[] parameters)
+TModel FirstOrDefault(string conditions = "", object[] parameters = null)
+TModel SingleOrDefault(string conditions = "", object[] parameters = null)
+bool Any(string conditions = "", object[] parameters = null)
+int Count(string conditions = "", object[] parameters = null)
+bool Insert(TModel model)
+bool InsertRange(IEnumerable<TModel> models)
+bool Update(TModel model, string conditions)
+bool Update(TModel model, string whereClause, object[] whereParameters)
+bool Delete(string conditions, object[] parameters)
+TModel Find(object primaryKeyValue)
+IEnumerable<TModel> All()
+TModel Single(string conditions, object[] parameters)
+```
+
+#### Supported Expression Types
+
+| Expression | SQL Equivalent | Example |
+|-----------|----------------|---------|
+| `==` | `=` | `u => u.Name == "John"` |
+| `!=` | `!=` | `u => u.Status != "deleted"` |
+| `>` | `>` | `u => u.Age > 18` |
+| `>=` | `>=` | `u => u.Age >= 18` |
+| `<` | `<` | `u => u.Age < 65` |
+| `<=` | `<=` | `u => u.Age <= 65` |
+| `&&` | `AND` | `u => u.Age > 18 && u.Active == true` |
+| `||` | `OR` | `u => u.Name == "A" || u.Name == "B"` |
+| `!` | `NOT` | `u => !(u.Age > 65)` |
+
+
 
 ### DataExportController
 

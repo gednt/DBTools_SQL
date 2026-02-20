@@ -128,12 +128,12 @@ if (success)
 
 ## LINQ-Style Approach - Modern Queries
 
-For a more modern, type-safe approach similar to Entity Framework, use the `PropertyBasedUtilsController`:
+For a more modern, type-safe approach similar to Entity Framework, use the `UtilsController` with LINQ lambda expressions:
 
 ### Setup
 
 ```csharp
-using DBTools_Utilities.Controller;
+using DbTools.Controller;
 
 // Define your model
 public class User
@@ -146,37 +146,48 @@ public class User
 }
 
 // Create controller (reads config.json automatically)
-var userController = new PropertyBasedUtilsController<User>("Users", "Id");
+var userController = new UtilsController<User>("Users", "Id");
 ```
 
 ### Query Operations
 
 ```csharp
-// SELECT: Simple equality
-var activeUsers = userController.WhereEquals(u => u.Status, "active");
+// GET ALL: Return all records
+var allUsers = userController.GetAll();
 
-// SELECT: Comparisons
-var adults = userController.WhereGreaterThan(u => u.Age, 18);
-var ageRange = userController.WhereBetween(u => u.Age, 25, 40);
+// WHERE: Filter with lambda expression
+var activeUsers = userController.Where(u => u.Status == "active");
 
-// SELECT: String operations
-var gmailUsers = userController.WhereContains(u => u.Email, "@gmail.com");
-var johnUsers = userController.WhereStartsWith(u => u.Username, "john");
+// WHERE: Multiple conditions (AND)
+var adults = userController.Where(u => u.Age > 18 && u.Status == "active");
 
-// SELECT: Collection queries
-var specificUsers = userController.WhereIn(u => u.Id, new[] { 1, 2, 3, 5 });
+// WHERE: OR conditions
+var specific = userController.Where(u => u.Username == "john" || u.Username == "jane");
 
-// Display results
-foreach (var user in activeUsers)
-{
-    Console.WriteLine($"{user.Username} - {user.Email}");
-}
+// FIRST: Get first match
+var user = userController.FirstOrDefault(u => u.Id == 1);
+
+// SINGLE: Get exactly one match
+var unique = userController.SingleOrDefault(u => u.Id == 1);
+
+// EXISTS: Check if any match
+bool exists = userController.Any(u => u.Username == "john_doe");
+
+// COUNT: Count matching records
+int count = userController.Count(u => u.Age > 18);
+
+// QUERYABLE: LINQ chaining
+var topUsers = userController.AsQueryable()
+    .Where(u => u.Age > 18)
+    .OrderByDescending(u => u.Age)
+    .Take(10)
+    .ToList();
 ```
 
 ### CRUD Operations
 
 ```csharp
-// INSERT
+// INSERT: Add (MySQLDBTools-compatible name)
 var newUser = new User
 {
     Username = "john_doe",
@@ -184,44 +195,23 @@ var newUser = new User
     Age = 30,
     Status = "active"
 };
+bool added = userController.Add(newUser);
 
-bool inserted = userController.Insert(newUser);
+// UPDATE: Update by lambda expression
+var updated = new User { Username = "john_doe", Email = "newemail@example.com", Age = 31, Status = "active" };
+bool updateSuccess = userController.Update(updated, u => u.Id == 5);
 
-// Or insert and get the created record
-var createdUser = userController.InsertAndFind(newUser, u => u.Username);
-Console.WriteLine($"New user ID: {createdUser.Id}");
+// SAVE CHANGES: Update using primary key
+var existingUser = userController.FirstOrDefault(u => u.Id == 5);
+if (existingUser != null)
+{
+    existingUser.Email = "updated@example.com";
+    bool saved = userController.SaveChanges(existingUser);
+}
 
-// UPDATE
-var user = userController.GetById(5);
-user.Email = "newemail@example.com";
-userController.UpdateByProperty(user, u => u.Id, 5);
-
-// DELETE
-userController.DeleteByProperty(u => u.Id, 5);
-
-// Or delete multiple
-userController.DeleteWhereIn(u => u.Id, new[] { 10, 11, 12 });
-```
-
-### Advanced Operations
-
-```csharp
-// Check existence
-bool exists = userController.Exists(u => u.Username, "john_doe");
-
-// Count records
-int count = userController.CountByProperty(u => u.Status, "active");
-
-// Get or create (upsert)
-var user = new User { Username = "jane", Email = "jane@example.com" };
-userController.InsertOrUpdate(user, u => u.Username);
-
-// LINQ chaining
-var topUsers = userController
-    .WhereGreaterThan(u => u.Age, 18)
-    .OrderByDescending(u => u.Age)
-    .Take(10)
-    .ToList();
+// DELETE: Remove by lambda expression (MySQLDBTools-compatible name)
+bool deleted = userController.Remove(u => u.Id == 5);
+bool deletedOld = userController.Remove(u => u.Status == "inactive");
 ```
 
 ### Benefits of LINQ-Style Approach
@@ -349,10 +339,13 @@ DataView results = utils.Select(
 ### Pattern 2: LINQ-Style Controller (Recommended)
 
 ```csharp
-var userController = new PropertyBasedUtilsController<User>("Users", "Id");
+var userController = new UtilsController<User>("Users", "Id");
 
-// Type-safe queries
-var results = userController.WhereGreaterThan(u => u.Age, 18);
+// Type-safe queries with lambda expressions (MySQLDBTools-compatible LINQ standard)
+var adults = userController.Where(u => u.Age > 18);
+var user = userController.FirstOrDefault(u => u.Id == 1);
+bool added = userController.Add(new User { Name = "John", Age = 30 });
+bool deleted = userController.Remove(u => u.Id == 1);
 ```
 
 ---

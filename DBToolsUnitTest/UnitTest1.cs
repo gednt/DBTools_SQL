@@ -1294,6 +1294,319 @@ namespace DBToolsUnitTest
 
             #endregion
 
+            #region UtilsController LINQ Expression Tests
+
+            [TestClass]
+            public class UtilsControllerLinqTests
+            {
+                private class TestUser
+                {
+                    public int Id { get; set; }
+                    public string Name { get; set; }
+                    public string Email { get; set; }
+                    public int Age { get; set; }
+                }
+
+                [TestMethod]
+                public void GetAll_ShouldReturnAllRecords()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act
+                    var result = controller.GetAll();
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(List<TestUser>));
+                    Assert.IsTrue(result.Count > 0);
+                }
+
+                [TestMethod]
+                public void AsQueryable_ShouldReturnIQueryable()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act
+                    var result = controller.AsQueryable();
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(IQueryable<TestUser>));
+                }
+
+                [TestMethod]
+                public void Add_ShouldInsertRecord()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    var name = Names();
+                    var surname = Surnames();
+                    var user = new TestUser { Name = name + " " + surname, Email = Emails(name, surname), Age = new Random().Next(18, 80) };
+
+                    // Act
+                    bool result = controller.Add(user);
+
+                    // Assert
+                    Assert.IsTrue(result);
+                }
+
+                [TestMethod]
+                public void Where_WithLambdaPredicate_ShouldReturnMatchingRecords()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act
+                    var result = controller.Where(u => u.Age > 18);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsInstanceOfType(result, typeof(List<TestUser>));
+                    Assert.IsTrue(result.Count > 0);
+                    Assert.IsTrue(result.All(u => u.Age > 18));
+                }
+
+                [TestMethod]
+                public void Where_WithAndCondition_ShouldReturnMatchingRecords()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act
+                    var result = controller.Where(u => u.Age > 18 && u.Age < 80);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsTrue(result.All(u => u.Age > 18 && u.Age < 80));
+                }
+
+                [TestMethod]
+                public void FirstOrDefault_WithLambdaPredicate_ShouldReturnFirstMatch()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act
+                    var result = controller.FirstOrDefault(u => u.Age > 18);
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsTrue(result.Age > 18);
+                }
+
+                [TestMethod]
+                public void FirstOrDefault_WithNoMatch_ShouldReturnNull()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act
+                    var result = controller.FirstOrDefault(u => u.Id == -999999);
+
+                    // Assert
+                    Assert.IsNull(result);
+                }
+
+                [TestMethod]
+                public void SingleOrDefault_WithNoMatch_ShouldReturnNull()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act
+                    var result = controller.SingleOrDefault(u => u.Id == -999999);
+
+                    // Assert
+                    Assert.IsNull(result);
+                }
+
+                [TestMethod]
+                [ExpectedException(typeof(InvalidOperationException))]
+                public void SingleOrDefault_WithMultipleMatches_ShouldThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act - multiple records will match Age > 18, should throw
+                    controller.SingleOrDefault(u => u.Age > 18);
+                }
+
+                [TestMethod]
+                public void Any_WithMatchingPredicate_ShouldReturnTrue()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act
+                    bool result = controller.Any(u => u.Age > 18);
+
+                    // Assert
+                    Assert.IsTrue(result);
+                }
+
+                [TestMethod]
+                public void Any_WithNoMatchingPredicate_ShouldReturnFalse()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act
+                    bool result = controller.Any(u => u.Id == -999999);
+
+                    // Assert
+                    Assert.IsFalse(result);
+                }
+
+                [TestMethod]
+                public void Count_WithPredicate_ShouldReturnCorrectCount()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act
+                    int countAll = controller.Count();
+                    int countFiltered = controller.Count(u => u.Age > 18);
+
+                    // Assert
+                    Assert.IsTrue(countAll >= countFiltered);
+                    Assert.IsTrue(countFiltered >= 0);
+                }
+
+                [TestMethod]
+                public void Remove_WithLambdaPredicate_ShouldNotThrow()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    // Insert a record to delete
+                    var name = Names();
+                    var surname = Surnames();
+                    var user = new TestUser { Name = "ToDelete_" + name, Email = Emails(name, surname), Age = 99 };
+                    controller.Add(user);
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.Remove(u => u.Age == 99);
+                    }
+                    catch (Exception ex)
+                    {
+                        Assert.Fail($"Remove should not throw: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                [ExpectedException(typeof(ArgumentException))]
+                public void Remove_WithNullPredicate_ShouldThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act - null predicate causes empty where clause, should throw
+                    controller.Remove(null);
+                }
+
+                [TestMethod]
+                public void Update_WithLambdaPredicate_ShouldNotThrow()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    var name = Names();
+                    var surname = Surnames();
+                    var user = new TestUser { Name = name + " " + surname, Email = Emails(name, surname), Age = 25 };
+                    controller.Add(user);
+
+                    var updatedUser = new TestUser { Name = "Updated " + name, Email = Emails(name, surname), Age = 26 };
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.Update(updatedUser, u => u.Age == 25);
+                    }
+                    catch (Exception ex)
+                    {
+                        Assert.Fail($"Update with predicate should not throw: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                [ExpectedException(typeof(InvalidOperationException))]
+                public void SaveChanges_WithoutPrimaryKey_ShouldThrowException()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users"); // No primary key specified
+                    var user = new TestUser { Id = 1, Name = "Test", Email = "test@test.com", Age = 25 };
+
+                    // Act - Should throw because no primary key specified
+                    controller.SaveChanges(user);
+                }
+
+                [TestMethod]
+                public void SaveChanges_WithValidPrimaryKey_ShouldNotThrow()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users", "Id", true);
+                    var name = Names();
+                    var surname = Surnames();
+                    var user = new TestUser { Name = name + " " + surname, Email = Emails(name, surname), Age = 30 };
+                    controller.Add(user);
+
+                    // Get the inserted user
+                    var inserted = controller.FirstOrDefault(u => u.Name == user.Name);
+                    Assert.IsNotNull(inserted);
+
+                    inserted.Age = 31;
+
+                    // Act & Assert - Should not throw
+                    try
+                    {
+                        controller.SaveChanges(inserted);
+                    }
+                    catch (Exception ex)
+                    {
+                        Assert.Fail($"SaveChanges should not throw: {ex.Message}");
+                    }
+                }
+
+                [TestMethod]
+                public void AsQueryable_AllowsLinqChaining()
+                {
+                    // Arrange
+                    var utils = new Utils();
+                    var controller = new UtilsController<TestUser>(utils, "Users");
+
+                    // Act - Use LINQ on top of AsQueryable
+                    var result = controller.AsQueryable()
+                        .Where(u => u.Age > 18)
+                        .OrderBy(u => u.Name)
+                        .ToList();
+
+                    // Assert
+                    Assert.IsNotNull(result);
+                    Assert.IsTrue(result.All(u => u.Age > 18));
+                }
+            }
+
+            #endregion
+
             #region QueryBuilder Tests
 
             [TestClass]
