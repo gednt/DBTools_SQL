@@ -1,4 +1,6 @@
-using DBTools_Utilities;
+using DBTools.Core;
+using DBTools.Abstractions;
+using DBTools.Models;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -9,60 +11,58 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DbTools.Controller
+namespace DBTools.Controllers
 {
     /// <summary>
     /// Helper class to hold WHERE clause parsing results for LINQ expression queries.
     /// </summary>
-    internal class WhereClauseResult
+    public class WhereClauseResult
     {
         public string WhereClause { get; set; }
         public List<object> Parameters { get; set; }
     }
 
     /// <summary>
-    /// Generic controller for LINQ-style database manipulation compatible with any model type.
+    /// Generic helper for LINQ-style database manipulation compatible with any model type.
     /// Provides Insert, Update, Delete, and Select operations similar to Entity Framework.
     /// </summary>
     /// <typeparam name="TModel">The model type that represents a database table record. 
     /// Must be a reference type (class) with a parameterless constructor. 
     /// Model properties should be public with getters and setters, and property names should match database column names.</typeparam>
-    public class UtilsController<TModel> where TModel : class, new()
+    public class LinqHelper<TModel> where TModel : class, new()
     {
-        private readonly DBTools_Utilities.Utils _utils;
+        private readonly SqlClient _utils;
         private readonly string _tableName;
         private readonly string _primaryKeyName;
         private readonly bool _autoIncrement;
+        private readonly ISqlQueryBuilder _queryBuilder;
 
         /// <summary>
-        /// Initializes a new instance of the UtilsController with database connection settings.
+        /// Initializes a new instance of the LinqHelper with database connection settings.
         /// </summary>
-        /// <param name="host">Database server address</param>
-        /// <param name="database">Database name</param>
-        /// <param name="uid">Database user ID</param>
-        /// <param name="password">Database password</param>
         /// <param name="tableName">The name of the database table</param>
-        /// <param name="port">Database port (default: 1433)</param>
         /// <param name="primaryKeyName">The name of the primary key column (optional)</param>
         /// <param name="autoIncrement">Whether the primary key is auto-incremented (default: true)</param>
-        public UtilsController(string tableName, string primaryKeyName = "", bool autoIncrement = true)
+        public LinqHelper(string tableName, string primaryKeyName = "", bool autoIncrement = true)
         {
-            _utils = new DBTools_Utilities.Utils();
+            _utils = new SqlClient();
+            _queryBuilder = new SqlQueryBuilder(new SqlValidator());
             _tableName = tableName;
             _primaryKeyName = primaryKeyName;
             _autoIncrement = autoIncrement;
         }
 
         /// <summary>
-        /// Initializes a new instance of the UtilsController with an existing Utils instance.
+        /// Initializes a new instance of the LinqHelper with an existing SqlClient instance.
         /// </summary>
-        /// <param name="utils">An existing Utils instance with database connection configured</param>
+        /// <param name="utils">An existing SqlClient instance with database connection configured</param>
         /// <param name="tableName">The name of the database table</param>
         /// <param name="primaryKeyName">The name of the primary key column (optional)</param>
         /// <param name="autoIncrement">Whether the primary key is auto-incremented (default: true)</param>
-        public UtilsController(DBTools_Utilities.Utils utils, string tableName, string primaryKeyName = "", bool autoIncrement = true)
+        public LinqHelper(SqlClient utils, string tableName, string primaryKeyName = "", bool autoIncrement = true)
         {
             _utils = utils;
+            _queryBuilder = utils.QueryBuilderInstance;
             _tableName = tableName;
             _primaryKeyName = primaryKeyName;
             _autoIncrement = autoIncrement;
@@ -98,52 +98,53 @@ namespace DbTools.Controller
         }
 
         ///<summary>
-        ///Inserts a list of model instances into the database.
+        ///Inserts a list of model instances into the database in a single atomic transaction.
+        ///If any insert fails, all inserts are rolled back.
         ///</summary>
         public bool InsertRange(IEnumerable<TModel> models)
         {
-            //Creates a list of sql insert statements
-            //And then executes them in a transaction
             var sqlStatements = new List<string>();
-            var rollbackStatements = new List<string>();
-            List<IEnumerable<SqlParameter>> sqlParameters = new List<IEnumerable<SqlParameter>>();
+            var sqlParameters = new List<List<SqlParameter>>();
+
             foreach (var model in models)
             {
                 var genericObjects = _utils.QueryBuilder(model, _primaryKeyName, _autoIncrement);
                 if (genericObjects == null || genericObjects.Count == 0)
                     continue;
                 var genericObj = genericObjects[0];
-   
 
-
-                string sql = Utils.Insert_Query(genericObj.columns, _tableName, genericObj.valuesString, "Id", true) + ";";
-                sqlParameters.Add(Utils.GenerateSqlParameters(genericObj.values));
+                string sql = _queryBuilder.InsertQuery(genericObj.columns, _tableName, genericObj.valuesString, _primaryKeyName, _autoIncrement);
+                sqlParameters.Add(_queryBuilder.GenerateSqlParameters(genericObj.values));
                 sqlStatements.Add(sql);
             }
 
-            for (var cont = 0; cont < sqlStatements.Count;cont++)
-            {
-                _utils.Query = sqlStatements[cont];
-                _utils.SqlParameters = sqlParameters[cont].ToList();
-                _utils.ExecuteQuery(sqlStatements[cont]);
-            }
-
-            if (_utils.Error != null)
-            {
-                for (var cont = 0; cont < sqlStatements.Count; cont++)
-                {
-                    _utils.Query = sqlStatements[cont];
-                    _utils.SqlParameters = sqlParameters[cont].ToList();
-                    _utils.ExecuteQuery(sqlStatements[cont]);
-                }
-            }
-            if (String.IsNullOrEmpty(_utils.Error))
-            {
+            if (sqlStatements.Count == 0)
                 return true;
-            }
-            else
+
+            using (var conn = new Microsoft.Data.SqlClient.SqlConnection(_utils.ConnectionString))
             {
-                return false;
+                conn.Open();
+                using (var transaction = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        for (int i = 0; i < sqlStatements.Count; i++)
+                        {
+                            using (var cmd = new Microsoft.Data.SqlClient.SqlCommand(sqlStatements[i], conn, transaction))
+                            {
+                                cmd.Parameters.AddRange(sqlParameters[i].ToArray());
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        transaction.Commit();
+                        return true;
+                    }
+                    catch
+                    {
+                        transaction.Rollback();
+                        return false;
+                    }
+                }
             }
         }
 
@@ -321,9 +322,10 @@ namespace DbTools.Controller
 
         /// <summary>
         /// Returns all records as IQueryable for advanced LINQ operations such as OrderBy, Skip, Take.
+        /// This base implementation loads all data into memory. Override in derived classes for SQL-translated deferred execution.
         /// </summary>
         /// <returns>An IQueryable of all TModel instances in the table</returns>
-        public IQueryable<TModel> AsQueryable()
+        public virtual IQueryable<TModel> AsQueryable()
         {
             return GetAll().AsQueryable();
         }
@@ -465,7 +467,7 @@ namespace DbTools.Controller
         /// <summary>
         /// Parses a LINQ lambda expression into a SQL WHERE clause with parameter values.
         /// </summary>
-        private WhereClauseResult ParseWhereExpression(Expression<Func<TModel, bool>> predicate)
+        protected internal WhereClauseResult ParseWhereExpression(Expression<Func<TModel, bool>> predicate)
         {
             if (predicate == null)
                 throw new ArgumentNullException(nameof(predicate));
@@ -482,7 +484,7 @@ namespace DbTools.Controller
         /// <summary>
         /// Recursively parses an expression tree node into a SQL fragment.
         /// </summary>
-        private string ParseExpression(Expression expression, List<object> parameters)
+        protected internal string ParseExpression(Expression expression, List<object> parameters)
         {
             switch (expression.NodeType)
             {
@@ -536,15 +538,16 @@ namespace DbTools.Controller
         /// <summary>
         /// Parses a binary comparison expression into a SQL condition.
         /// </summary>
-        private string ParseBinaryExpression(BinaryExpression expression, List<object> parameters)
+        protected internal string ParseBinaryExpression(BinaryExpression expression, List<object> parameters)
         {
+            int paramsBefore = parameters.Count;
             string left = ParseExpression(expression.Left, parameters);
             string right = ParseExpression(expression.Right, parameters);
 
             string op = expression.NodeType switch
             {
                 ExpressionType.Equal => "=",
-                ExpressionType.NotEqual => "!=",
+                ExpressionType.NotEqual => "<>",
                 ExpressionType.GreaterThan => ">",
                 ExpressionType.GreaterThanOrEqual => ">=",
                 ExpressionType.LessThan => "<",
@@ -552,15 +555,42 @@ namespace DbTools.Controller
                 _ => throw new NotSupportedException($"Binary operator '{expression.NodeType}' is not supported.")
             };
 
+            // Rewrite = NULL / <> NULL to IS NULL / IS NOT NULL
+            if (op == "=" || op == "<>")
+            {
+                bool rightIsNull = right.StartsWith("@param") && IsNullParam(right, parameters, paramsBefore);
+                bool leftIsNull = left.StartsWith("@param") && IsNullParam(left, parameters, paramsBefore);
+                string notNull = op == "<>" ? "IS NOT NULL" : "IS NULL";
+                if (rightIsNull) return $"{left} {notNull}";
+                if (leftIsNull) return $"{right} {notNull}";
+            }
+
             return $"{left} {op} {right}";
+        }
+
+        private static bool IsNullParam(string paramName, List<object> parameters, int paramsBefore)
+        {
+            if (!int.TryParse(paramName.Substring(6), out int idx))
+                return false;
+            return idx < parameters.Count && idx >= paramsBefore && parameters[idx] == DBNull.Value;
         }
 
         #endregion
 
         /// <summary>
-        /// Provides access to the underlying Utils instance for advanced operations.
+        /// Provides access to the underlying SqlClient instance for advanced operations.
         /// </summary>
-        public DBTools_Utilities.Utils Utils => _utils;
+        public SqlClient Utils => _utils;
+
+        /// <summary>
+        /// Gets the table name used by this controller.
+        /// </summary>
+        protected string TableName => _tableName;
+
+        /// <summary>
+        /// Gets the primary key name used by this controller.
+        /// </summary>
+        protected string PrimaryKeyName => _primaryKeyName;
 
         /// <summary>
         /// Gets the last error message from the database operations.
@@ -570,7 +600,7 @@ namespace DbTools.Controller
         /// <summary>
         /// Maps a DataView to a collection of model instances using reflection.
         /// </summary>
-        private IEnumerable<TModel> MapDataViewToModels(DataView dataView)
+        protected internal IEnumerable<TModel> MapDataViewToModels(DataView dataView)
         {
             var models = new List<TModel>();
             if (dataView == null || dataView.Count == 0)

@@ -8,7 +8,7 @@ This document describes the comprehensive unit test suite created for the DBTool
 The DBTools project uses the following namespace structure:
 - **`DbTools`** - Core DBTools class (formerly DBToolsDll.DBTools_SQL)
 - **`DbTools.Model`** - Model classes (GenericObject, GenericObject_Simple)
-- **`DbTools.Controller`** - Controller classes (DBToolsController, UtilsController)
+- **`DbTools.Controller`** - Controller classes (DBToolsController, LinqHelper)
 - **`DbTools.Interfaces`** - Interface definitions (IDBTools)
 - **`DBTools_Utilities`** - Utility classes (Utils, DataExport)
 
@@ -122,7 +122,7 @@ Tests the controller wrapper class (namespace: `DbTools.Controller`).
 - `Constructor_ShouldInitialize` - Tests controller initialization
 - `SqlExecuteQuery_ShouldSetQuery` - Tests query execution through controller
 
-### 10. **UtilsController Generic Tests** (`UtilsControllerTests`)
+### 10. **LinqHelper Generic Tests** (`LinqHelperTests`)
 Tests the generic LINQ-style controller for type-safe database operations (namespace: `DbTools.Controller`).
 
 #### Allowed Operations:
@@ -214,7 +214,7 @@ using System.Data;
 using System.Collections.Generic;
 using DBTools_Utilities;      // Utils, DataExport
 using DbTools.Model;           // GenericObject, GenericObject_Simple
-using DbTools.Controller;      // DBToolsController, UtilsController
+using DbTools.Controller;      // DBToolsController, LinqHelper
 using DbTools;                 // DBTools class
 ```
 

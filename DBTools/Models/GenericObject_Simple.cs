@@ -1,6 +1,6 @@
-﻿using System;
+using System;
 
-namespace DbTools.Model
+namespace DBTools.Models
 {
     public class GenericObject_Simple
     {

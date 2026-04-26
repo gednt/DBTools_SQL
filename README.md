@@ -1,6 +1,6 @@
 # DBTools_SQL
 
-A robust .NET library for SQL Server database operations with built-in security features, parameterized queries, and comprehensive data manipulation utilities.
+A robust .NET library for SQL Server database operations with built-in security features, parameterized queries, LINQ expression support, and comprehensive data manipulation utilities.
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-blue.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![C#](https://img.shields.io/badge/C%23-latest-green.svg)](https://docs.microsoft.com/en-us/dotnet/csharp/)
@@ -12,11 +12,18 @@ A robust .NET library for SQL Server database operations with built-in security 
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Quick Start](#quick-start)
+- [Architecture](#architecture)
 - [Core Functionality](#core-functionality)
   - [Database Connection](#database-connection)
   - [CRUD Operations](#crud-operations)
   - [Query Builder](#query-builder)
   - [Data Export](#data-export)
+- [LinqHelper - LINQ Expression Queries](#linqhelper---linq-expression-queries)
+- [Linq - Property-Based Queries & JOINs](#linq---property-based-queries--joins)
+  - [Query Methods](#query-methods)
+  - [CRUD Operations](#linq-crud-operations)
+  - [JOIN Support](#join-support)
+  - [Deferred IQueryable Execution](#deferred-iqueryable-execution)
 - [Security](#security)
 - [API Reference](#api-reference)
 - [Examples](#examples)
@@ -25,15 +32,18 @@ A robust .NET library for SQL Server database operations with built-in security 
 
 ## Features
 
-? **Key Features:**
-
 - **Parameterized Queries**: Built-in protection against SQL injection attacks
 - **CRUD Operations**: Complete Create, Read, Update, Delete functionality
+- **LINQ Expression Queries**: Lambda predicates like `Where(u => u.Age > 18)` with `LinqHelper<TModel>`
+- **Property-Based Queries**: Type-safe `WhereEquals`, `WhereContains`, `WhereBetween`, etc. with `Linq<TModel>`
+- **JOIN Support**: `InnerJoin` and `LeftJoin` with `JoinResult<TLeft, TRight>` and LINQ chaining
+- **Deferred IQueryable**: SQL-translated `AsQueryable()` with `DbQuery<T>` for deferred execution
 - **Query Builder**: Helper utilities for dynamic query construction
-- **Data Export**: Export data to CSV format with flexible options
+- **Data Export**: Export data to CSV and convert CSV to DataTable
 - **Configuration-Based**: JSON configuration file for database settings
 - **Type-Safe**: Generic object models for type-safe data handling
-- **Input Validation**: Comprehensive identifier validation to prevent SQL injection
+- **Input Validation**: Comprehensive identifier validation via `SqlValidator`
+- **Dependency Injection**: Constructor overloads accepting `IDbConfiguration`, `ISqlClient`, etc.
 - **Error Handling**: Robust error handling and validation throughout
 
 ## Installation
@@ -45,7 +55,7 @@ git clone https://github.com/gednt/DBTools_SQL.git
 ```
 
 2. Add reference to your project:
-   - In Visual Studio, right-click on your project ? Add ? Reference
+   - In Visual Studio, right-click on your project → Add → Reference
    - Browse to the compiled `DBTools.dll`
 
 3. Add the configuration file to your project root (see [Configuration](#configuration))
@@ -56,7 +66,7 @@ Create a `config.json` file in your application's root directory:
 
 ```json
 {
-  "Host": "localhost",
+  "Host": "localhost\\SQLEXPRESS",
   "Database": "YourDatabaseName",
   "Uid": "YourUsername",
   "Password": "YourPassword",
@@ -79,18 +89,18 @@ Create a `config.json` file in your application's root directory:
 ## Quick Start
 
 ```csharp
-using DBTools_Utilities;
+using DBTools.Core;
 using System.Data;
 
-// Initialize the Utils class (automatically reads config.json)
-var dbUtils = new Utils();
+// Initialize SqlClient (automatically reads config.json)
+var db = new SqlClient();
 
 // Perform a simple SELECT query
-DataView results = dbUtils.Select(
-    "_fields": "*",
-    "_table": "Users",
-    "whereClause": "Age > @param0",
-    "parameters": new object[] { 18 }
+DataView results = db.Select(
+    _fields: "*",
+    _table: "Users",
+    whereClause: "Age > @param0",
+    parameters: new object[] { 18 }
 );
 
 // Iterate through results
@@ -100,15 +110,84 @@ foreach (DataRowView row in results)
 }
 ```
 
+## Architecture
+
+DBTools_SQL is organized into the following namespaces:
+
+| Namespace | Description |
+|-----------|-------------|
+| `DBTools.Core` | Core classes: `SqlClient`, `DBTools`, `DbConfiguration`, `SqlQueryBuilder`, `SqlValidator` |
+| `DBTools.Controllers` | Controller classes: `LinqHelper<TModel>`, `Linq<TModel>`, `DBToolsController`, `DataExportController` |
+| `DBTools.Models` | Data models: `GenericObject`, `GenericObject_Simple` |
+| `DBTools.Linq` | LINQ infrastructure: `DbQuery<T>`, `DbQueryProvider`, `DbExpressionTranslator`, `JoinQuery<TLeft,TRight>`, `JoinResult<TLeft,TRight>` |
+| `DBTools.Export` | Export utilities: `DataExport` |
+| `DBTools.Abstractions` | Interfaces: `ISqlClient`, `IDbConfiguration`, `ISqlQueryBuilder`, `ISqlValidator`, `IDBTools` |
+
+### Project Structure
+
+```
+DBTools/
+├── Core/
+│   ├── DBTools.cs              # Base database connection class
+│   ├── DbConfiguration.cs      # Configuration loading from config.json
+│   ├── SqlClient.cs            # Main utility class (CRUD, QueryBuilder)
+│   ├── SqlQueryBuilder.cs      # SQL query generation with validation
+│   └── SqlValidator.cs         # SQL injection prevention validator
+├── Controllers/
+│   ├── DBToolsController.cs    # Legacy DBTools controller
+│   ├── DataExportController.cs # Data export controller
+│   ├── LinqHelper.cs           # LINQ expression-based queries
+│   └── Linq.cs                 # Property-based queries, JOINs, deferred IQueryable
+├── Abstractions/
+│   ├── IDBTools.cs             # Base DBTools interface
+│   ├── IDbConfiguration.cs     # Configuration interface
+│   ├── ISqlClient.cs           # SqlClient interface
+│   ├── ISqlQueryBuilder.cs     # Query builder interface
+│   └── ISqlValidator.cs       # Validator interface
+├── Models/
+│   ├── GenericObject.cs        # Generic data container with Insert/Update
+│   └── GenericObject_Simple.cs # Simple key-value-column container
+├── Linq/
+│   ├── DbQuery.cs              # IQueryable implementation (deferred execution)
+│   ├── DbQueryProvider.cs      # IQueryProvider (translates LINQ to SQL)
+│   ├── DbExpressionTranslator.cs # Expression tree to SQL translator
+│   ├── JoinQuery.cs            # IQueryable for JOIN queries
+│   └── JoinResult.cs           # JOIN result row (Left + Right models)
+├── Export/
+│   └── DataExport.cs           # CSV export and DataTable conversion
+├── Properties/
+│   ├── AssemblyInfo.cs
+│   └── Settings.Designer.cs
+├── DBTools.csproj
+└── config.json
+```
+
 ## Core Functionality
 
 ### Database Connection
 
-The `Utils` class automatically establishes a connection using the configuration file:
+The `SqlClient` class automatically establishes a connection using the configuration file:
 
 ```csharp
-var dbUtils = new Utils();
-// Connection is automatically established
+using DBTools.Core;
+
+var db = new SqlClient();
+// Connection is automatically configured from config.json
+```
+
+**Dependency Injection:**
+
+```csharp
+using DBTools.Core;
+using DBTools.Abstractions;
+using Microsoft.Extensions.Configuration;
+
+// Custom configuration
+var config = new DbConfiguration(myIConfiguration);
+var validator = new SqlValidator();
+var queryBuilder = new SqlQueryBuilder(validator);
+
+var db = new SqlClient(config, validator, queryBuilder);
 ```
 
 ### CRUD Operations
@@ -117,29 +196,29 @@ var dbUtils = new Utils();
 
 **With Parameterized WHERE Clause:**
 ```csharp
-DataView users = dbUtils.Select(
-    "_fields": "id, name, email",
-    "_table": "Users",
-    "whereClause": "status = @param0 AND age > @param1",
-    "parameters": new object[] { "active", 18 }
+DataView users = db.Select(
+    "id, name, email",
+    "Users",
+    "status = @param0 AND age > @param1",
+    new object[] { "active", 18 }
 );
 ```
 
 **Without WHERE Clause:**
 ```csharp
-DataView allUsers = dbUtils.Select(
-    "_fields": "*",
-    "_table": "Users",
-    "whereClause": "",
-    "parameters": new object[] { }
+DataView allUsers = db.Select(
+    "*",
+    "Users",
+    "",
+    new object[] { }
 );
 ```
 
 **Using Query Without SELECT Keyword:**
 ```csharp
-DataView customQuery = dbUtils.Select(
-    "query_without_select": "* FROM Users INNER JOIN Orders ON Users.id = Orders.user_id WHERE Orders.total > @param0",
-    "parameters": new object[] { 100.00 }
+DataView customQuery = db.Select(
+    "* FROM Users INNER JOIN Orders ON Users.id = Orders.user_id WHERE Orders.total > @param0",
+    new object[] { 100.00 }
 );
 ```
 
@@ -150,11 +229,7 @@ DataView customQuery = dbUtils.Select(
 string[] fields = { "name", "email", "age" };
 object[] values = { "John Doe", "john@example.com", 30 };
 
-bool success = dbUtils.Insert(
-    "_fields": fields,
-    "_table": "Users",
-    "_values": values
-);
+bool success = db.Insert(fields, "Users", values);
 ```
 
 **With Auto-Increment Primary Key:**
@@ -163,18 +238,11 @@ string[] fields = { "id", "name", "email", "age" };
 object[] values = { 1, "John Doe", "john@example.com", 30 };
 
 // The 'id' field will be automatically excluded
-bool success = dbUtils.Insert(
-    "_fields": fields,
-    "_table": "Users",
-    "_values": values,
-    "primary_key_name": "id",
-    "auto_increment": true
-);
+bool success = db.Insert(fields, "Users", values, "id", true);
 ```
 
 **Using QueryBuilder:**
 ```csharp
-// Define your model class
 public class User
 {
     public string Name { get; set; }
@@ -182,7 +250,6 @@ public class User
     public int Age { get; set; }
 }
 
-// Create an instance
 var newUser = new User
 {
     Name = "Jane Doe",
@@ -190,50 +257,16 @@ var newUser = new User
     Age = 25
 };
 
-// Use QueryBuilder to generate fields and values
-var queryData = dbUtils.QueryBuilder(newUser);
+var queryData = db.QueryBuilder(newUser);
 
-bool success = dbUtils.Insert(
-    "_fields": queryData[0].columns,
-    "_table": "Users",
-    "_values": queryData[0].values
+bool success = db.Insert(
+    queryData[0].columns,
+    "Users",
+    queryData[0].values
 );
 ```
 
 #### UPDATE - Modify Records
-
-**Traditional Approach:**
-```csharp
-string[] fields = { "name", "email" };
-string[] values = { "John Smith", "johnsmith@example.com" };
-string condition = "id = 5";
-
-bool success = dbUtils.Update(
-    "_fields": fields,
-    "_table": "Users",
-    "_values": values,
-    "condition": condition
-);
-```
-
-**LINQ-Style Approach (Recommended - MySQLDBTools-compatible standard):**
-```csharp
-var userController = new UtilsController<User>("Users", "Id");
-
-// Lambda expression queries - same standard as MySQLDBTools
-var user = userController.FirstOrDefault(u => u.Id == 5);
-user.Email = "johnsmith@example.com";
-
-// Update by lambda predicate
-bool success = userController.Update(user, u => u.Id == 5);
-
-// Or save changes by primary key
-user.Username = "john_smith";
-userController.SaveChanges(user);
-
-// Remove by lambda predicate
-userController.Remove(u => u.Status == "inactive");
-```
 
 **Parameterized Update (Recommended):**
 ```csharp
@@ -242,31 +275,34 @@ string[] values = { "John Smith", "johnsmith@example.com", "31" };
 string whereClause = "id = @whereParam0";
 object[] whereParams = new object[] { 5 };
 
-bool success = dbUtils.Update(
-    "_fields": fields,
-    "_table": "Users",
-    "_values": values,
-    "whereClause": whereClause,
-    "whereParameters": whereParams
-);
+bool success = db.Update(fields, "Users", values, whereClause, whereParams);
+```
+
+**Legacy String Condition Update:**
+```csharp
+string[] fields = { "name", "email" };
+string[] values = { "John Smith", "johnsmith@example.com" };
+string condition = "id = 5";
+
+bool success = db.Update(fields, "Users", values, condition);
 ```
 
 #### DELETE - Remove Records
 
 ```csharp
-bool success = dbUtils.Delete(
-    "_table": "Users",
-    "whereClause": "id = @param0",
-    "parameters": new object[] { 5 }
+bool success = db.Delete(
+    "Users",
+    "id = @param0",
+    new object[] { 5 }
 );
 ```
 
 **Delete Multiple Records:**
 ```csharp
-bool success = dbUtils.Delete(
-    "_table": "Users",
-    "whereClause": "status = @param0 AND created_date < @param1",
-    "parameters": new object[] { "inactive", DateTime.Now.AddYears(-1) }
+bool success = db.Delete(
+    "Users",
+    "status = @param0 AND created_date < @param1",
+    new object[] { "inactive", DateTime.Now.AddYears(-1) }
 );
 ```
 
@@ -291,14 +327,8 @@ var product = new Product
     CreatedDate = DateTime.Now
 };
 
-// Generate query data
-List<GenericObject> queryData = dbUtils.QueryBuilder(
-    obj: product,
-    primaryKeyName: "Id",
-    autoIncrement: true
-);
+List<GenericObject> queryData = db.QueryBuilder(product, "Id", true);
 
-// Access generated data
 string[] columns = queryData[0].columns;     // ["Name", "Price", "CreatedDate"]
 object[] values = queryData[0].values;        // ["Laptop", 999.99, "2024-01-15 10:30:00"]
 string[] types = queryData[0].types;          // ["String", "Decimal", "DateTime"]
@@ -306,26 +336,25 @@ string[] types = queryData[0].types;          // ["String", "Decimal", "DateTime
 
 ### Data Export
 
-Export query results to CSV format:
+Export query results to CSV format or convert CSV to DataTable:
 
 ```csharp
-using DBTools_Utilities;
+using DBTools.Export;
 
 var dataExport = new DataExport();
 
-// Get data using QueryBuilder or direct query
-var queryData = dbUtils.QueryBuilder(myObject);
-
 // Export to CSV
+var queryData = db.QueryBuilder(myObject);
 string csvContent = dataExport.ToCsv(
     genericObject: queryData,
     separator: ',',
-    showColums: true,    // Include column headers
-    showTypes: true      // Include data type row
+    showColums: true,
+    showTypes: true
 );
-
-// Save to file
 File.WriteAllText("export.csv", csvContent);
+
+// Convert CSV to DataTable
+DataTable table = dataExport.ToCsv(csvContent, ',', specifyColumnTypes: true);
 ```
 
 **CSV Output Example:**
@@ -338,22 +367,22 @@ Mouse,29.99,2024-01-16 14:20:00
 
 ---
 
-## UtilsController - LINQ Expression Queries (MySQLDBTools-compatible)
+## LinqHelper - LINQ Expression Queries
 
-The `UtilsController<TModel>` follows the same LINQ standards as MySQLDBTools, supporting full lambda expression predicates similar to Entity Framework's LINQ queries.
+The `LinqHelper<TModel>` supports lambda expression predicates similar to Entity Framework's LINQ queries.
 
-### Why Use UtilsController?
+### Why Use LinqHelper?
 
-? **LINQ Lambda Expressions**: Write `Where(u => u.Age > 18)` instead of `"Age > @param0"`  
-? **Type Safety**: Compile-time checking for conditions  
-? **MySQLDBTools Compatibility**: Same LINQ API across SQL Server and MySQL  
-? **Familiar API**: Methods like `Add()`, `Remove()`, `SaveChanges()`, `GetAll()`, `AsQueryable()`  
-? **Expression Support**: `==`, `!=`, `>`, `>=`, `<`, `<=`, `&&`, `||`, `!`
+- **LINQ Lambda Expressions**: Write `Where(u => u.Age > 18)` instead of `"Age > @param0"`
+- **Type Safety**: Compile-time checking for conditions
+- **MySQLDBTools Compatibility**: Same LINQ API across SQL Server and MySQL
+- **Familiar API**: Methods like `Add()`, `Remove()`, `SaveChanges()`, `GetAll()`, `AsQueryable()`
+- **Expression Support**: `==`, `!=`, `>`, `>=`, `<`, `<=`, `&&`, `||`, `!`
 
 ### Setup
 
 ```csharp
-using DbTools.Controller;
+using DBTools.Controllers;
 
 public class User
 {
@@ -364,11 +393,20 @@ public class User
     public string Status { get; set; }
 }
 
-var userController = new UtilsController<User>(
+var userController = new LinqHelper<User>(
     tableName: "Users",
     primaryKeyName: "Id",
     autoIncrement: true
 );
+```
+
+**With existing SqlClient:**
+```csharp
+using DBTools.Core;
+using DBTools.Controllers;
+
+var db = new SqlClient();
+var userController = new LinqHelper<User>(db, "Users", "Id", true);
 ```
 
 ### LINQ Methods
@@ -393,15 +431,18 @@ bool exists = userController.Any(u => u.Name == "John");
 // Count matches
 int count = userController.Count(u => u.Age > 18);
 
-// LINQ chaining via AsQueryable
-var sorted = userController.AsQueryable()
-    .Where(u => u.Age > 18)
-    .OrderBy(u => u.Name)
-    .Take(10)
-    .ToList();
+// Find by primary key
+var found = userController.Find(5);
 
 // Add (insert)
 bool added = userController.Add(new User { Name = "Alice", Email = "alice@example.com", Age = 28 });
+
+// Bulk insert
+bool bulkAdded = userController.InsertRange(new List<User>
+{
+    new User { Name = "Bob", Email = "bob@example.com", Age = 30 },
+    new User { Name = "Carol", Email = "carol@example.com", Age = 25 }
+});
 
 // Update with lambda predicate
 bool updated = userController.Update(updatedUser, u => u.Id == 1);
@@ -415,26 +456,49 @@ bool saved = userController.SaveChanges(existing);
 bool deleted = userController.Remove(u => u.Id == 1);
 ```
 
+### String-Based Query Methods
+
+LinqHelper also supports string-based conditions for complex queries:
+
+```csharp
+// String-based Where
+var results = userController.Where("Age > @param0 AND Status = @param1", new object[] { 18, "active" });
+
+// String-based FirstOrDefault
+var user = userController.FirstOrDefault("Id = @param0", new object[] { 5 });
+
+// String-based Count
+int count = userController.Count("Status = @param0", new object[] { "active" });
+
+// String-based Any
+bool any = userController.Any("Age > @param0", new object[] { 65 });
+
+// String-based Single
+var single = userController.Single("Id = @param0", new object[] { 1 });
+
+// Get all
+var all = userController.All();
+```
+
 ---
 
-## PropertyBasedUtilsController - LINQ-Style Queries
+## Linq - Property-Based Queries & JOINs
 
-The `PropertyBasedUtilsController<TModel>` provides additional property-selector operations extending `UtilsController<TModel>`.
+The `Linq<TModel>` extends `LinqHelper<TModel>` with property-selector operations and JOIN support.
 
-### Why Use PropertyBasedUtilsController?
+### Why Use Linq?
 
-? **Extended Operations**: `WhereContains`, `WhereIn`, `WhereBetween`, `WhereIsNull`, etc.  
-? **Type Safety**: Compile-time checking for property names  
-? **IntelliSense Support**: IDE autocomplete for properties  
-? **Cleaner Code**: More readable and maintainable queries  
-? **Refactoring-Friendly**: Rename properties safely with IDE refactoring tools  
+- **Extended Operations**: `WhereContains`, `WhereIn`, `WhereBetween`, `WhereIsNull`, etc.
+- **Type Safety**: Compile-time checking for property names
+- **IntelliSense Support**: IDE autocomplete for properties
+- **JOIN Support**: `InnerJoin` and `LeftJoin` with LINQ chaining
+- **Deferred IQueryable**: SQL-translated `AsQueryable()` with `DbQuery<T>`
 
 ### Setup
 
 ```csharp
-using DBTools_Utilities.Controller;
+using DBTools.Controllers;
 
-// Define your model
 public class User
 {
     public int Id { get; set; }
@@ -445,8 +509,7 @@ public class User
     public DateTime? LastLogin { get; set; }
 }
 
-// Create controller
-var userController = new PropertyBasedUtilsController<User>(
+var userController = new Linq<User>(
     tableName: "Users",
     primaryKeyName: "Id",
     autoIncrement: true
@@ -458,11 +521,8 @@ var userController = new PropertyBasedUtilsController<User>(
 #### Comparison Queries
 
 ```csharp
-// Equality
 var user = userController.WhereEquals(u => u.Username, "john_doe");
 var notActive = userController.WhereNotEquals(u => u.Status, "active");
-
-// Numeric comparisons
 var adults = userController.WhereGreaterThan(u => u.Age, 18);
 var seniors = userController.WhereGreaterThanOrEquals(u => u.Age, 65);
 var young = userController.WhereLessThan(u => u.Age, 25);
@@ -472,7 +532,6 @@ var ageRange = userController.WhereBetween(u => u.Age, 25, 40);
 #### String Queries
 
 ```csharp
-// Pattern matching
 var gmailUsers = userController.WhereContains(u => u.Email, "@gmail.com");
 var johnUsers = userController.WhereStartsWith(u => u.Username, "john");
 var adminUsers = userController.WhereEndsWith(u => u.Email, "@admin.com");
@@ -481,29 +540,20 @@ var adminUsers = userController.WhereEndsWith(u => u.Email, "@admin.com");
 #### Collection Queries
 
 ```csharp
-// IN clause
 var specificUsers = userController.WhereIn(u => u.Id, new[] { 1, 2, 3, 5, 8 });
-var activeOrPending = userController.WhereIn(u => u.Status, new[] { "active", "pending" });
-
-// NOT IN clause
 var excludedUsers = userController.WhereNotIn(u => u.Id, new[] { 99, 100 });
 ```
 
 #### Null Checks
 
 ```csharp
-// Check for null
 var usersWithoutEmail = userController.WhereIsNull(u => u.Email);
-var neverLoggedIn = userController.WhereIsNull(u => u.LastLogin);
-
-// Check for not null
 var usersWithEmail = userController.WhereIsNotNull(u => u.Email);
 ```
 
 #### Example-Based Filtering
 
 ```csharp
-// Use a model as a filter template
 var filter = new User
 {
     Status = "active",
@@ -515,49 +565,27 @@ var matchingUsers = userController.WhereByExample(filter);
 // Finds all users with Status='active' AND Age=30
 ```
 
-### CRUD Operations
+### Linq CRUD Operations
 
 #### Retrieve Records
 
 ```csharp
-// Get all records
 var allUsers = userController.All();
-
-// Get by ID
-var user = userController.GetById(5);
-
-// Get first matching record
+var user = userController.Find(5);
 var firstJohn = userController.FirstOrDefaultByProperty(u => u.Username, "john");
-
-// Get single record (throws if 0 or >1 found)
 var singleUser = userController.SingleByProperty(u => u.Email, "unique@example.com");
-
-// Check existence
 bool exists = userController.Exists(u => u.Username, "john_doe");
-bool anyAdults = userController.AnyByProperty(u => u.Age, 18);
-
-// Count records
-int userCount = userController.Count();
 int activeCount = userController.CountByProperty(u => u.Status, "active");
 ```
 
 #### Insert Records
 
 ```csharp
-var newUser = new User
-{
-    Username = "jane_doe",
-    Email = "jane@example.com",
-    Age = 28,
-    Status = "active"
-};
-
-// Simple insert
+var newUser = new User { Username = "jane_doe", Email = "jane@example.com", Age = 28 };
 bool success = userController.Insert(newUser);
 
 // Insert and retrieve (gets auto-generated ID)
 var insertedUser = userController.InsertAndFind(newUser, u => u.Username);
-Console.WriteLine($"New user ID: {insertedUser.Id}");
 
 // Get or create (insert if not exists)
 var user = userController.GetOrCreate(newUser, u => u.Username);
@@ -569,65 +597,110 @@ userController.InsertOrUpdate(newUser, u => u.Username);
 #### Update Records
 
 ```csharp
-// Update by single property
-var user = userController.GetById(5);
-user.Email = "newemail@example.com";
 userController.UpdateByProperty(user, u => u.Id, 5);
-
-// Update by multiple properties
-userController.UpdateWhere(user,
-    u => u.Username, "john_doe",
-    u => u.Status, "active");
-
-// Update where property is in list
+userController.UpdateWhere(user, u => u.Username, "john_doe", u => u.Status, "active");
 userController.UpdateWhereIn(user, u => u.Id, new[] { 1, 2, 3 });
-
-// Update where property is null
 userController.UpdateWhereIsNull(user, u => u.Email);
 ```
 
 #### Delete Records
 
 ```csharp
-// Delete by single property
 userController.DeleteByProperty(u => u.Id, 5);
-
-// Delete by multiple properties
-userController.DeleteWhere(
-    u => u.Status, "inactive",
-    u => u.Age, 100);
-
-// Delete where property is in list
+userController.DeleteWhere(u => u.Status, "inactive", u => u.Age, 100);
 userController.DeleteWhereIn(u => u.Id, new[] { 10, 11, 12 });
-
-// Delete where property is null
 userController.DeleteWhereIsNull(u => u.Email);
 ```
+
+### JOIN Support
+
+The `Linq<TModel>` provides type-safe JOIN operations with LINQ chaining:
+
+```csharp
+using DBTools.Controllers;
+using DBTools.Linq;
+
+public class Order
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public decimal Total { get; set; }
+    public string Status { get; set; }
+}
+
+var userController = new Linq<User>("Users", "Id");
+
+// INNER JOIN
+var innerJoinQuery = userController.InnerJoin<Order>(
+    rightTable: "Orders",
+    leftKey: u => u.Id,
+    rightKey: o => o.UserId
+);
+
+var results = innerJoinQuery
+    .Where(j => j.Left.Age > 18)
+    .ToList();
+
+foreach (var row in results)
+{
+    Console.WriteLine($"User: {row.Left.Username}, Order Total: {row.Right.Total}");
+}
+
+// LEFT JOIN
+var leftJoinQuery = userController.LeftJoin<Order>(
+    rightTable: "Orders",
+    leftKey: u => u.Id,
+    rightKey: o => o.UserId
+);
+
+var leftResults = leftJoinQuery.ToList();
+foreach (var row in leftResults)
+{
+    // row.Right may be null for LEFT JOIN non-matches
+    Console.WriteLine($"User: {row.Left.Username}, Order: {(row.Right != null ? row.Right.Total.ToString() : "No orders")}");
+}
+```
+
+**JoinResult<TLeft, TRight>** properties:
+- `Left` - The model from the primary table
+- `Right` - The model from the joined table (null for LEFT JOIN non-matches)
+
+### Deferred IQueryable Execution
+
+The `Linq<TModel>.AsQueryable()` returns a `DbQuery<TModel>` that translates LINQ operations to SQL. No query is executed until the result is enumerated:
+
+```csharp
+// SQL-translated deferred execution (Linq<TModel> override)
+var query = userController.AsQueryable()
+    .Where(u => u.Age > 18)
+    .OrderBy(u => u.Name)
+    .Skip(10)
+    .Take(5);
+
+// SQL is only executed when enumerated
+var results = query.ToList();
+
+// Debug: see the generated SQL
+Console.WriteLine(query.ToString());
+```
+
+**Note:** `LinqHelper<TModel>.AsQueryable()` loads all data into memory first. Use `Linq<TModel>` for SQL-translated deferred execution.
 
 ### Chaining with LINQ
 
 The controller returns `IEnumerable<TModel>`, so you can chain LINQ operations:
 
 ```csharp
-// Get users and process with LINQ
 var topUsers = userController
     .WhereGreaterThan(u => u.Age, 18)
     .OrderByDescending(u => u.Age)
     .Take(10)
     .ToList();
 
-// Complex filtering
 var filteredUsers = userController
     .WhereEquals(u => u.Status, "active")
     .Where(u => u.Email.Contains("@gmail.com"))
     .Select(u => new { u.Username, u.Email })
-    .ToList();
-
-// Grouping
-var usersByAge = userController
-    .All()
-    .GroupBy(u => u.Age)
-    .Select(g => new { Age = g.Key, Count = g.Count() })
     .ToList();
 ```
 
@@ -635,15 +708,15 @@ var usersByAge = userController
 
 - **Database-Side Filtering**: All `Where*` methods execute on the database, not in memory
 - **Parameterized Queries**: All queries use parameterized SQL for security and performance
-- **Efficient Queries**: Only specified columns are retrieved
+- **Deferred Execution**: `DbQuery<T>` translates LINQ to SQL and executes only on enumeration
 - **Connection Management**: Connections are automatically managed
 
-### Migration from Traditional Utils
+### Migration from Traditional SqlClient
 
 **Before (Traditional):**
 ```csharp
-var utils = new Utils();
-DataView results = utils.Select("*", "Users", "age > @param0", new object[] { 18 });
+var db = new SqlClient();
+DataView results = db.Select("*", "Users", "age > @param0", new object[] { 18 });
 
 foreach (DataRowView row in results)
 {
@@ -653,7 +726,7 @@ foreach (DataRowView row in results)
 
 **After (LINQ-Style):**
 ```csharp
-var userController = new PropertyBasedUtilsController<User>("Users", "Id");
+var userController = new Linq<User>("Users", "Id");
 var results = userController.WhereGreaterThan(u => u.Age, 18);
 
 foreach (var user in results)
@@ -673,43 +746,42 @@ DBTools_SQL implements multiple layers of security:
 All CRUD methods use parameterized queries:
 
 ```csharp
-// ? SAFE - Uses parameters
-dbUtils.Select(
-    "_fields": "*",
-    "_table": "Users",
-    "whereClause": "username = @param0",
-    "parameters": new object[] { userInput }
+// SAFE - Uses parameters
+db.Select(
+    "*",
+    "Users",
+    "username = @param0",
+    new object[] { userInput }
 );
 
-// ? UNSAFE - String concatenation (NOT supported by parameterized methods)
+// UNSAFE - String concatenation (NOT supported by parameterized methods)
 // Don't do: "WHERE username = '" + userInput + "'"
 ```
 
-#### 2. Identifier Validation
+#### 2. Identifier Validation (`SqlValidator`)
 
 All table and column names are validated:
 
 ```csharp
-// ? VALID identifiers
+// VALID identifiers
 "Users"
 "user_name"
 "[User Table]"
 "schema.table"
 "id, name, email"
 
-// ? INVALID identifiers (will throw ArgumentException)
+// INVALID identifiers (will throw ArgumentException)
 "Users; DROP TABLE--"
 "Users--"
 "Users/*comment*/"
-"table WITH DROP"
 ```
 
 #### 3. Forbidden Keywords
 
-The library blocks dangerous SQL keywords:
+The `SqlValidator` blocks dangerous SQL keywords:
 - DROP
 - DELETE (in identifiers, not in WHERE clauses)
-- SQL comment patterns (--, ;--, /*, */)
+- SQL comment patterns (`--`, `;--`, `/*`, `*/`)
 
 ### Best Practices
 
@@ -718,414 +790,69 @@ The library blocks dangerous SQL keywords:
 3. **Use WHERE clauses** - UPDATE and DELETE require conditions
 4. **Limit permissions** - Use database user with minimal required privileges
 5. **Secure config.json** - Store database credentials securely (use environment variables or secret managers in production)
+6. **Use abstractions** - Depend on `ISqlClient`, `ISqlValidator`, etc. for testability
 
 ## API Reference
 
-### Utils Class
+See [API Reference](docs/API_REFERENCE.md) for complete method documentation.
 
-Main utility class for database operations.
+### SqlClient Class (Main Utility)
 
-#### Constructor
+**Namespace**: `DBTools.Core`
+**Inherits**: `DBTools.Core.DBTools`
 
-```csharp
-public Utils()
-```
-Initializes the Utils instance and loads configuration from `config.json`.
-
-**Throws:**
-- `FileNotFoundException` - If config.json is not found
-- `InvalidOperationException` - If configuration is invalid or incomplete
-
-#### Methods
-
-##### Select
-
-```csharp
-public DataView Select(string _fields, string _table, string whereClause, object[] parameters)
-```
-
-Retrieves data with parameterized WHERE clause.
-
-**Parameters:**
-- `_fields` (string) - Comma-separated field names or "*"
-- `_table` (string) - Table name
-- `whereClause` (string) - WHERE clause with @param0, @param1, etc.
-- `parameters` (object[]) - Array of parameter values
-
-**Returns:** `DataView` with query results
-
-**Throws:**
-- `ArgumentException` - Invalid identifiers
-- `ArgumentNullException` - Null parameters array
-
----
-
-```csharp
-public DataView Select(string query_without_select, object[] parameters)
-```
-
-Executes a custom query without the SELECT keyword.
-
-**Parameters:**
-- `query_without_select` (string) - Query starting from field list
-- `parameters` (object[]) - Array of parameter values
-
-**Returns:** `DataView` with query results
-
-##### Insert
-
-```csharp
-public bool Insert(string[] _fields, string _table, object[] _values, string primary_key_name = null, bool auto_increment = true)
-```
-
-Inserts a new record into the database.
-
-**Parameters:**
-- `_fields` (string[]) - Array of field names
-- `_table` (string) - Table name
-- `_values` (object[]) - Array of values
-- `primary_key_name` (string, optional) - Primary key field name
-- `auto_increment` (bool, optional) - Whether primary key auto-increments
-
-**Returns:** `bool` - True if successful, false otherwise
-
-##### Update
-
-```csharp
-public bool Update(string[] _fields, string _table, string[] _values, string condition = "")
-```
-
-Updates records with string condition (legacy method).
-
-```csharp
-public bool Update(string[] _fields, string _table, string[] _values, string whereClause, object[] whereParameters)
-```
-
-Updates records with parameterized WHERE clause (recommended).
-
-**Returns:** `bool` - True if successful, false otherwise
-
-##### Delete
-
-```csharp
-public bool Delete(string _table, string whereClause, object[] parameters)
-```
-
-Deletes records using parameterized WHERE clause.
-
-**Parameters:**
-- `_table` (string) - Table name
-- `whereClause` (string) - WHERE clause with parameters
-- `parameters` (object[]) - Array of parameter values
-
-**Returns:** `bool` - True if successful, false otherwise
-
-##### QueryBuilder
-
-```csharp
-public List<GenericObject> QueryBuilder(object obj, string primaryKeyName = "", bool autoIncrement = true)
-```
-
-Converts an object to database-ready format.
-
-**Parameters:**
-- `obj` (object) - Object to convert
-- `primaryKeyName` (string, optional) - Primary key property name
-- `autoIncrement` (bool, optional) - Whether to exclude primary key
-
-**Returns:** `List<GenericObject>` with columns, values, and types
-
-##### ExecuteQuery
-
-```csharp
-public void ExecuteQuery(string query)
-```
-
-Executes a non-query SQL command.
-
-**Parameters:**
-- `query` (string) - SQL query to execute
-
-### GenericObject Class
-
-Container for database operation data.
-
-**Properties:**
-- `columns` (string[]) - Column names
-- `values` (object[]) - Column values
-- `valuesString` (string[]) - String representation of values
-- `types` (string[]) - Data types
-- `table` (string) - Table name
-
-**Methods:**
-```csharp
-public bool Insert()
-public bool Update(string conditions)
-```
-
-### DataExport Class
-
-Handles data export operations.
-
-#### ToCsv
-
-```csharp
-public string ToCsv(List<GenericObject> genericObject, char separator, bool showColums = true, bool showTypes = true)
-```
-
-Exports data to CSV format.
-
-**Parameters:**
-- `genericObject` (List<GenericObject>) - Data to export
-- `separator` (char) - CSV separator character
-- `showColums` (bool) - Include column headers
-- `showTypes` (bool) - Include type information
-
-**Returns:** `string` - CSV formatted data
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `Select(string fields, string table, string whereClause, object[] parameters)` | `DataView` | Parameterized SELECT |
+| `Select(string queryWithoutSelect, object[] parameters)` | `DataView` | Custom query without SELECT keyword |
+| `Insert(string[] fields, string table, object[] values, string primaryKeyName, bool autoIncrement)` | `bool` | Parameterized INSERT |
+| `Update(string[] fields, string table, string[] values, string condition)` | `bool` | UPDATE with string condition |
+| `Update(string[] fields, string table, string[] values, string whereClause, object[] whereParameters)` | `bool` | Parameterized UPDATE |
+| `Delete(string table, string whereClause, object[] parameters)` | `bool` | Parameterized DELETE |
+| `QueryBuilder(object obj, string primaryKeyName, bool autoIncrement)` | `List<GenericObject>` | Object to database format |
+| `ExecuteQuery(string query)` | `void` | Execute non-query SQL |
+| `GetInBd(string query)` | `string[]` | First column as string array |
+| `GetInBdDv(string query)` | `DataView` | Query results as DataView |
 
 ### Static Query Helpers
 
 ```csharp
-public static string Select_Query(string _fields, string _table, string _conditions)
-public static string Insert_Query(string[] _fields, string _table, object[] _values, string primary_key_name = "", bool auto_increment = true)
-public static string Update_Query(string[] _fields, string _table, string[] _values, string condition = "")
-public static string Delete_Query(string _table, string condition)
+public static string Select_Query(string fields, string table, string conditions)
+public static string Insert_Query(string[] fields, string table, object[] values, string primaryKeyName, bool autoIncrement)
+public static string Update_Query(string[] fields, string table, string[] values, string condition)
+public static string Delete_Query(string table, string condition)
 public static List<SqlParameter> GenerateSqlParameters(object[] values)
 ```
 
-Generate SQL query strings (use parameterized methods instead for better security).
+### GenericObject Class
+
+**Namespace**: `DBTools.Models`
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `columns` | `string[]` | Column names |
+| `values` | `object[]` | Column values |
+| `valuesString` | `string[]` | String representation of values |
+| `types` | `string[]` | Data types |
+| `table` | `string` | Table name |
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `Insert()` | `bool` | Insert using columns/values |
+| `Update(string conditions)` | `bool` | Update using columns/values |
+
+### DataExport Class
+
+**Namespace**: `DBTools.Export`
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `ToCsv(List<GenericObject>, char, bool, bool)` | `string` | Export to CSV |
+| `ToDataTable(string csv, char, bool)` | `DataTable` | Convert CSV to DataTable |
 
 ## Examples
 
-### Example 1: User Management System
-
-```csharp
-using DBTools_Utilities;
-using System;
-using System.Data;
-
-public class UserManager
-{
-    private Utils dbUtils;
-
-    public UserManager()
-    {
-        dbUtils = new Utils();
-    }
-
-    public void CreateUser(string username, string email, string password)
-    {
-        string[] fields = { "username", "email", "password_hash", "created_date" };
-        object[] values = { username, email, HashPassword(password), DateTime.Now };
-
-        bool success = dbUtils.Insert(fields, "Users", values);
-
-        if (success)
-            Console.WriteLine("User created successfully!");
-        else
-            Console.WriteLine($"Error: {dbUtils.Error}");
-    }
-
-    public DataView GetUserByEmail(string email)
-    {
-        return dbUtils.Select(
-            "*",
-            "Users",
-            "email = @param0",
-            new object[] { email }
-        );
-    }
-
-    public void UpdateUserEmail(int userId, string newEmail)
-    {
-        string[] fields = { "email", "updated_date" };
-        string[] values = { newEmail, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") };
-
-        bool success = dbUtils.Update(
-            fields,
-            "Users",
-            values,
-            "id = @whereParam0",
-            new object[] { userId }
-        );
-
-        if (success)
-            Console.WriteLine("Email updated successfully!");
-    }
-
-    public void DeleteUser(int userId)
-    {
-        bool success = dbUtils.Delete(
-            "Users",
-            "id = @param0",
-            new object[] { userId }
-        );
-
-        if (success)
-            Console.WriteLine("User deleted successfully!");
-    }
-
-    private string HashPassword(string password)
-    {
-        // Implement your password hashing logic
-        return password; // Placeholder
-    }
-}
-```
-
-### Example 2: Product Catalog with Export
-
-```csharp
-using DBTools_Utilities;
-using System;
-using System.Collections.Generic;
-using System.IO;
-
-public class Product
-{
-    public int Id { get; set; }
-    public string Name { get; set; }
-    public decimal Price { get; set; }
-    public string Category { get; set; }
-    public DateTime CreatedDate { get; set; }
-}
-
-public class ProductCatalog
-{
-    private Utils dbUtils;
-    private DataExport dataExport;
-
-    public ProductCatalog()
-    {
-        dbUtils = new Utils();
-        dataExport = new DataExport();
-    }
-
-    public void AddProduct(Product product)
-    {
-        var queryData = dbUtils.QueryBuilder(product, "Id", true);
-
-        bool success = dbUtils.Insert(
-            queryData[0].columns,
-            "Products",
-            queryData[0].values,
-            "Id",
-            true
-        );
-
-        if (success)
-            Console.WriteLine($"Product '{product.Name}' added successfully!");
-    }
-
-    public void ExportProductsToCSV(string category, string outputPath)
-    {
-        // Get products by category
-        var results = dbUtils.Select(
-            "*",
-            "Products",
-            "category = @param0",
-            new object[] { category }
-        );
-
-        // Convert DataView to GenericObject list
-        var productList = new List<DBTools.Model.GenericObject>();
-
-        foreach (DataRowView row in results)
-        {
-            var columns = new List<string>();
-            var values = new List<object>();
-            var types = new List<string>();
-
-            foreach (DataColumn column in results.Table.Columns)
-            {
-                columns.Add(column.ColumnName);
-                values.Add(row[column.ColumnName]);
-                types.Add(column.DataType.Name);
-            }
-
-            productList.Add(new DBTools.Model.GenericObject
-            {
-                columns = columns.ToArray(),
-                values = values.ToArray(),
-                types = types.ToArray()
-            });
-        }
-
-        // Export to CSV
-        string csvContent = dataExport.ToCsv(productList, ',', true, true);
-        File.WriteAllText(outputPath, csvContent);
-
-        Console.WriteLine($"Products exported to {outputPath}");
-    }
-
-    public void UpdateProductPrice(int productId, decimal newPrice)
-    {
-        string[] fields = { "price" };
-        string[] values = { newPrice.ToString() };
-
-        bool success = dbUtils.Update(
-            fields,
-            "Products",
-            values,
-            "id = @whereParam0",
-            new object[] { productId }
-        );
-
-        if (success)
-            Console.WriteLine("Price updated successfully!");
-    }
-}
-```
-
-### Example 3: Advanced Query with Joins
-
-```csharp
-public class OrderManager
-{
-    private Utils dbUtils;
-
-    public OrderManager()
-    {
-        dbUtils = new Utils();
-    }
-
-    public DataView GetUserOrdersWithDetails(int userId)
-    {
-        string query = @"
-            o.id AS OrderId,
-            o.order_date AS OrderDate,
-            o.total AS Total,
-            u.username AS Username,
-            p.name AS ProductName,
-            oi.quantity AS Quantity
-            FROM Orders o
-            INNER JOIN Users u ON o.user_id = u.id
-            INNER JOIN OrderItems oi ON o.id = oi.order_id
-            INNER JOIN Products p ON oi.product_id = p.id
-            WHERE o.user_id = @param0
-            ORDER BY o.order_date DESC";
-
-        return dbUtils.Select(query, new object[] { userId });
-    }
-
-    public decimal GetTotalOrderAmount(int orderId)
-    {
-        var result = dbUtils.Select(
-            "SUM(total) AS TotalAmount",
-            "Orders",
-            "id = @param0",
-            new object[] { orderId }
-        );
-
-        if (result.Count > 0)
-        {
-            return Convert.ToDecimal(result[0]["TotalAmount"]);
-        }
-
-        return 0;
-    }
-}
-```
+See [Examples](docs/EXAMPLES.md) for comprehensive code examples.
 
 ## Error Handling
 
@@ -1134,14 +861,12 @@ All methods include comprehensive error handling:
 ```csharp
 try
 {
-    var dbUtils = new Utils();
-
-    bool success = dbUtils.Insert(fields, "Users", values);
+    var db = new SqlClient();
+    bool success = db.Insert(fields, "Users", values);
 
     if (!success)
     {
-        // Check the Error property for details
-        Console.WriteLine($"Insert failed: {dbUtils.Error}");
+        Console.WriteLine($"Insert failed: {db.Error}");
     }
 }
 catch (FileNotFoundException ex)
@@ -1167,33 +892,16 @@ catch (Exception ex)
 - **.NET 8.0** or higher
 - **C#** latest version
 - **SQL Server** (any version compatible with Microsoft.Data.SqlClient)
-- **Microsoft.Extensions.Configuration** NuGet package
-- **Microsoft.Extensions.Configuration.Json** NuGet package
 
-## Project Structure
+### NuGet Dependencies
 
-```
-DBTools_SQL/
-??? DBTools/
-?   ??? Classes/
-?   ?   ??? DBTools.cs          # Core database connection class
-?   ?   ??? DataExport.cs       # Data export utilities
-?   ??? Controller/
-?   ?   ??? DBToolsController.cs
-?   ?   ??? UtilsController.cs
-?   ?   ??? DataExportController.cs
-?   ??? Interfaces/
-?   ?   ??? IDBTools.cs         # Database operations interface
-?   ??? Model/
-?   ?   ??? GenericObject.cs    # Generic data container
-?   ?   ??? GenericObject_Simple.cs
-?   ??? Utils.cs                # Main utility class
-?   ??? DBTools.csproj
-??? DBToolsUnitTest/
-?   ??? DBToolsUnitTest.csproj  # Unit tests
-??? config.json                 # Database configuration
-??? README.md
-```
+| Package | Version | Purpose |
+|---------|---------|---------|
+| Microsoft.Data.SqlClient | 5.2.2 | SQL Server connectivity |
+| Microsoft.Extensions.Configuration | 10.0.1 | Configuration framework |
+| Microsoft.Extensions.Configuration.Json | 10.0.1 | JSON configuration provider |
+| NPOI | 2.7.3 | Excel export support |
+| System.Configuration.ConfigurationManager | 10.0.1 | Legacy configuration support |
 
 ## Contributing
 
@@ -1213,18 +921,44 @@ Contributions are welcome! Please follow these guidelines:
 - Include unit tests for new features
 - Ensure all tests pass before submitting PR
 - Use parameterized queries for all database operations
+- Depend on abstractions (`ISqlClient`, `ISqlValidator`, etc.) for testability
 
 ## Testing
 
-The project includes a unit test project (`DBToolsUnitTest`). To run tests:
+The project includes a comprehensive unit test project (`DBToolsUnitTest`). To run tests:
 
-1. Open the solution in Visual Studio
-2. Open Test Explorer (Test ? Test Explorer)
-3. Click "Run All"
-
-Or via command line:
 ```bash
 dotnet test
+```
+
+### Test Structure
+
+```
+DBToolsUnitTest/
+├── Controllers/
+│   ├── DBToolsControllerTests.cs
+│   ├── LinqHelperTests.cs
+│   ├── LinqHelperLinqTests.cs
+│   └── LinqTests.cs
+├── Core/
+│   ├── DBToolsTests.cs
+│   ├── ObsoleteMethodTests.cs
+│   ├── QueryBuilderTests.cs
+│   ├── SqlClientConnectionTests.cs
+│   ├── SqlClientParameterizedQueryTests.cs
+│   ├── SqlClientQueryBuilderTests.cs
+│   └── SqlClientValidationTests.cs
+├── Models/
+│   ├── GenericObjectTests.cs
+│   └── GenericObjectSimpleTests.cs
+├── Linq/
+│   └── DbQueryLinqTests.cs
+├── Export/
+│   └── DataExportTests.cs
+├── Integration/
+│   ├── EdgeCaseTests.cs
+│   └── WorkflowTests.cs
+└── TestBase.cs
 ```
 
 ## Troubleshooting
@@ -1257,8 +991,8 @@ dotnet test
 1. **Use appropriate indexes** on frequently queried columns
 2. **Limit SELECT fields** - Avoid `SELECT *` when possible
 3. **Use parameterized queries** - They support query plan caching
-4. **Close connections** - The library handles this automatically
-5. **Batch operations** when inserting/updating multiple records
+4. **Use deferred IQueryable** - `Linq<TModel>.AsQueryable()` translates LINQ to SQL for efficient queries
+5. **Batch operations** - Use `InsertRange` for bulk inserts
 
 ## Roadmap
 
@@ -1268,7 +1002,6 @@ Future enhancements being considered:
 - [ ] Transaction support
 - [ ] Connection pooling configuration
 - [ ] Support for stored procedures
-- [ ] Bulk insert operations
 - [ ] Additional database providers (MySQL, PostgreSQL)
 - [ ] Query result caching
 - [ ] Logging and diagnostics
@@ -1285,14 +1018,8 @@ For issues, questions, or contributions:
 - **GitHub Issues**: [https://github.com/gednt/DBTools_SQL/issues](https://github.com/gednt/DBTools_SQL/issues)
 - **GitHub Repository**: [https://github.com/gednt/DBTools_SQL](https://github.com/gednt/DBTools_SQL)
 
-## Acknowledgments
-
-- Built with ?? for the .NET community
-- Inspired by the need for simple, secure database operations
-- Thanks to all contributors
-
 ---
 
 **Note**: This library is designed for SQL Server. For other database systems, modifications may be required.
 
-**?? Security Notice**: Always store database credentials securely. Never commit `config.json` with real credentials to version control. Consider using environment variables or Azure Key Vault for production deployments.
+**Security Notice**: Always store database credentials securely. Never commit `config.json` with real credentials to version control. Consider using environment variables or Azure Key Vault for production deployments.
