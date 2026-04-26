@@ -1,11 +1,10 @@
-﻿using DbTools.Model;
-using DBTools.Model;
+using DBTools.Models;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using Microsoft.Data.SqlClient;
 
-namespace DbTools
+namespace DBTools.Core
 {
     /// <summary>
     /// DBTools is a Sql Library to manipulate data in Sql Databases
@@ -172,7 +171,7 @@ namespace DbTools
                     return _connectionString;
                 }
 
-                _connectionString = $"Data Source=tcp:{Host},{Port};Initial Catalog={Database};User ID={Uid};Password={Password};";
+                _connectionString = $"Data Source=tcp:{Host},{Port};Initial Catalog={Database};User ID={Uid};Password={Password};TrustServerCertificate=True;";
 
 
                 return _connectionString;
@@ -249,25 +248,18 @@ namespace DbTools
         [Obsolete("This method is deprecated and should use SqlExecuteQuery instead", false)]
         public void sqlExecuteQuery()
         {
-
-            SqlConnection SqlConnection = new SqlConnection(ConnectionString);
-            SqlConnection.Open();
-            try
+            using (SqlConnection SqlConnection = new SqlConnection(ConnectionString))
             {
-                SqlCommand SqlCommand = SqlConnection.CreateCommand();
-                SqlCommand.CommandText = this.getQuery();
-                SqlCommand.ExecuteNonQuery();
-            }
-            catch (SqlException ex)
-            {
-                this.Error = ex.ToString();
-            }
-            finally
-            {
-                bool flag = SqlConnection.State == ConnectionState.Open;
-                if (flag)
+                SqlConnection.Open();
+                try
                 {
-                    SqlConnection.Close();
+                    SqlCommand SqlCommand = SqlConnection.CreateCommand();
+                    SqlCommand.CommandText = this.getQuery();
+                    SqlCommand.ExecuteNonQuery();
+                }
+                catch (Exception ex)
+                {
+                    this.Error = ex.ToString();
                 }
             }
         }
@@ -309,10 +301,9 @@ namespace DbTools
 
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                DataSet dataSet2 = new DataSet();
-                defaultView = dataSet2.Tables[0].DefaultView;
+                Error = ex.ToString();
             }
             return defaultView;
         }
@@ -372,7 +363,6 @@ namespace DbTools
         /// 
         public void SqlExecuteQuery(String query = "")
         {
-
             using (SqlConnection SqlConnection = new SqlConnection(ConnectionString))
             {
                 SqlConnection.Open();
@@ -384,20 +374,11 @@ namespace DbTools
                         SqlCommand.Parameters.AddRange(SqlParameters.ToArray());
                     SqlCommand.ExecuteNonQuery();
                 }
-                catch (SqlException ex)
+                catch (Exception ex)
                 {
                     this.Error = ex.ToString();
                 }
-                finally
-                {
-                    bool flag = SqlConnection.State == ConnectionState.Open;
-                    if (flag)
-                    {
-                        SqlConnection.Close();
-                    }
-                }
             }
-
         }
 
 
@@ -439,8 +420,7 @@ namespace DbTools
             }
             catch (Exception e)
             {
-                DataSet dataSet2 = new DataSet();
-                defaultView = dataSet2.Tables[0].DefaultView;
+                Error = e.ToString();
             }
             return defaultView;
         }

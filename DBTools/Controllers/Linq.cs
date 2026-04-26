@@ -1,38 +1,42 @@
-using DBTools_Utilities;
+using DBTools.Core;
+using DBTools.Linq;
+using DBTools.Abstractions;
+using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 
-namespace DbTools.Controller
+namespace DBTools.Controllers
 {
     /// <summary>
-    /// A derived controller from UtilsController that enables property-based LINQ-style queries.
+    /// A LINQ-compliant controller that extends LinqHelper with IQueryable support, property-based queries, and JOINs.
     /// Uses object properties to automatically build SQL queries, similar to Entity Framework.
     /// </summary>
     /// <typeparam name="TModel">The model type that represents a database table record.</typeparam>
-    public class PropertyBasedUtilsController<TModel> : UtilsController<TModel> where TModel : class, new()
+    public class Linq<TModel> : LinqHelper<TModel> where TModel : class, new()
     {
         /// <summary>
-        /// Initializes a new instance of the PropertyBasedUtilsController with database connection settings.
+        /// Initializes a new instance of Linq with database connection settings.
         /// </summary>
         /// <param name="tableName">The name of the database table</param>
         /// <param name="primaryKeyName">The name of the primary key column (optional)</param>
         /// <param name="autoIncrement">Whether the primary key is auto-incremented (default: true)</param>
-        public PropertyBasedUtilsController(string tableName, string primaryKeyName = "", bool autoIncrement = true)
+        public Linq(string tableName, string primaryKeyName = "", bool autoIncrement = true)
             : base(tableName, primaryKeyName, autoIncrement)
         {
         }
 
         /// <summary>
-        /// Initializes a new instance of the PropertyBasedUtilsController with an existing Utils instance.
+        /// Initializes a new instance of Linq with an existing SqlClient instance.
         /// </summary>
-        /// <param name="utils">An existing Utils instance with database connection configured</param>
+        /// <param name="utils">An existing SqlClient instance with database connection configured</param>
         /// <param name="tableName">The name of the database table</param>
         /// <param name="primaryKeyName">The name of the primary key column (optional)</param>
         /// <param name="autoIncrement">Whether the primary key is auto-incremented (default: true)</param>
-        public PropertyBasedUtilsController(Utils utils, string tableName, string primaryKeyName = "", bool autoIncrement = true)
+        public Linq(SqlClient utils, string tableName, string primaryKeyName = "", bool autoIncrement = true)
             : base(utils, tableName, primaryKeyName, autoIncrement)
         {
         }
@@ -382,17 +386,9 @@ namespace DbTools.Controller
             {
                 var value = property.GetValue(filterModel);
                 
-                // Skip null values
+                // Skip null values (value types are never null, so this only applies to reference types)
                 if (value == null)
                     continue;
-                
-                // Skip default values for value types
-                if (property.PropertyType.IsValueType)
-                {
-                    var defaultValue = Activator.CreateInstance(property.PropertyType);
-                    if (defaultValue != null && value.Equals(defaultValue))
-                        continue;
-                }
 
                 conditions.Add($"{property.Name} = @param{paramIndex}");
                 parameters.Add(value);
@@ -537,8 +533,7 @@ namespace DbTools.Controller
         {
             string propertyName = GetPropertyName(propertySelector);
             string condition = $"{propertyName} IS NULL";
-            // Pass empty array since IS NULL doesn't need parameters
-            return Delete(condition + " AND 1=1", new object[] { });
+            return Delete(condition, new object[] { });
         }
 
         /// <summary>
@@ -553,8 +548,7 @@ namespace DbTools.Controller
         {
             string propertyName = GetPropertyName(propertySelector);
             string whereClause = $"{propertyName} IS NULL";
-            // Pass empty array since IS NULL doesn't need parameters
-            return Update(model, whereClause + " AND 1=1", new object[] { });
+            return Update(model, whereClause, new object[] { });
         }
 
         /// <summary>
@@ -607,17 +601,48 @@ namespace DbTools.Controller
         /// <returns>True if the operation was successful, false otherwise</returns>
         public bool InsertOrUpdate<TProperty>(TModel model, Expression<Func<TModel, TProperty>> propertySelector)
         {
-            var propertyInfo = GetPropertyInfo(propertySelector);
-            var value = (TProperty)propertyInfo.GetValue(model);
+            var matchPropInfo = GetPropertyInfo(propertySelector);
+            var matchPropName = matchPropInfo.Name;
 
-            if (Exists(propertySelector, value))
+            var allProps = typeof(TModel).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+                .Where(p => p.CanRead && p.CanWrite)
+                .ToList();
+
+            var parameters = new List<SqlParameter>();
+            int pIdx = 0;
+
+            // SET clause values (all writable properties)
+            var setClauseParts = new List<string>();
+            foreach (var prop in allProps)
             {
-                return UpdateByProperty(model, propertySelector, value);
+                string pName = $"@mp{pIdx}";
+                var val = prop.GetValue(model);
+                parameters.Add(new SqlParameter(pName, val ?? (object)DBNull.Value));
+                setClauseParts.Add($"target.{prop.Name} = {pName}");
+                pIdx++;
             }
-            else
-            {
-                return Insert(model);
-            }
+
+            // INSERT column + value lists (same properties)
+            var insertCols = string.Join(", ", allProps.Select(p => p.Name));
+            var insertVals = string.Join(", ", parameters.Select(p => p.ParameterName));
+
+            // ON clause — match by the specified property
+            string matchParamName = "@mp_match";
+            var matchValue = matchPropInfo.GetValue(model);
+            parameters.Add(new SqlParameter(matchParamName, matchValue ?? (object)DBNull.Value));
+
+            string mergeSql =
+                $"MERGE INTO {TableName} AS target " +
+                $"USING (SELECT {matchParamName} AS {matchPropName}) AS source ON target.{matchPropName} = source.{matchPropName} " +
+                $"WHEN MATCHED THEN UPDATE SET {string.Join(", ", setClauseParts)} " +
+                $"WHEN NOT MATCHED THEN INSERT ({insertCols}) VALUES ({insertVals});";
+
+            Utils.Query = mergeSql;
+            Utils.SqlParameters = parameters;
+            Utils.ExecuteQuery(mergeSql);
+            Utils.SqlParameters = null;
+
+            return string.IsNullOrEmpty(Utils.Error);
         }
 
         /// <summary>
@@ -638,6 +663,102 @@ namespace DbTools.Controller
 
             Insert(model);
             return FirstOrDefaultByProperty(propertySelector, value);
+        }
+
+        #endregion
+
+        #region IQueryable and JOIN Support
+
+        /// <summary>
+        /// Returns an IQueryable that supports deferred SQL-translated execution.
+        /// LINQ methods like Where, OrderBy, Skip, Take are translated to SQL and executed only on enumeration.
+        /// </summary>
+        /// <returns>A DbQuery instance that implements IQueryable with deferred execution</returns>
+        public override IQueryable<TModel> AsQueryable()
+        {
+            var provider = new DbQueryProvider(
+                Utils,
+                TableName,
+                PrimaryKeyName,
+                dataView => MapDataViewToModels(dataView).Cast<object>());
+            return new DbQuery<TModel>(provider, TableName);
+        }
+
+        /// <summary>
+        /// Creates an INNER JOIN query with the specified right table.
+        /// Returns a JoinQuery that supports LINQ chaining (Where, OrderBy, Skip, Take).
+        /// </summary>
+        /// <typeparam name="TRight">The model type for the right (joined) table</typeparam>
+        /// <param name="rightTable">The name of the right table to join</param>
+        /// <param name="leftKey">Expression selecting the left table's join key (e.g., u => u.Id)</param>
+        /// <param name="rightKey">Expression selecting the right table's join key (e.g., o => o.UserId)</param>
+        /// <returns>A JoinQuery for further LINQ operations</returns>
+        public JoinQuery<TModel, TRight> InnerJoin<TRight>(
+            string rightTable,
+            Expression<Func<TModel, object>> leftKey,
+            Expression<Func<TRight, object>> rightKey)
+            where TRight : class, new()
+        {
+            string leftKeyName = GetPropertyNameFromObjectSelector(leftKey);
+            string rightKeyName = GetPropertyNameFromObjectSelector<TRight>(rightKey);
+
+            var provider = new JoinQueryProvider<TModel, TRight>(
+                Utils,
+                TableName, "t0", leftKeyName,
+                rightTable, "t1", rightKeyName,
+                "INNER JOIN",
+                PrimaryKeyName);
+
+            return new JoinQuery<TModel, TRight>(provider);
+        }
+
+        /// <summary>
+        /// Creates a LEFT JOIN query with the specified right table.
+        /// Returns a JoinQuery where the Right property of JoinResult will be null for non-matching rows.
+        /// </summary>
+        /// <typeparam name="TRight">The model type for the right (joined) table</typeparam>
+        /// <param name="rightTable">The name of the right table to join</param>
+        /// <param name="leftKey">Expression selecting the left table's join key (e.g., u => u.Id)</param>
+        /// <param name="rightKey">Expression selecting the right table's join key (e.g., o => o.UserId)</param>
+        /// <returns>A JoinQuery for further LINQ operations</returns>
+        public JoinQuery<TModel, TRight> LeftJoin<TRight>(
+            string rightTable,
+            Expression<Func<TModel, object>> leftKey,
+            Expression<Func<TRight, object>> rightKey)
+            where TRight : class, new()
+        {
+            string leftKeyName = GetPropertyNameFromObjectSelector(leftKey);
+            string rightKeyName = GetPropertyNameFromObjectSelector<TRight>(rightKey);
+
+            var provider = new JoinQueryProvider<TModel, TRight>(
+                Utils,
+                TableName, "t0", leftKeyName,
+                rightTable, "t1", rightKeyName,
+                "LEFT JOIN",
+                PrimaryKeyName);
+
+            return new JoinQuery<TModel, TRight>(provider);
+        }
+
+        /// <summary>
+        /// Extracts a property name from an Expression&lt;Func&lt;T, object&gt;&gt; selector,
+        /// handling the Convert wrapper that appears when selecting value-type properties as object.
+        /// </summary>
+        private static string GetPropertyNameFromObjectSelector<T>(Expression<Func<T, object>> selector)
+        {
+            if (selector == null)
+                throw new ArgumentNullException(nameof(selector));
+
+            var body = selector.Body;
+
+            // Unwrap Convert when the property type is a value type selected as object
+            if (body is UnaryExpression unary && unary.NodeType == ExpressionType.Convert)
+                body = unary.Operand;
+
+            if (body is MemberExpression member && member.Member is PropertyInfo)
+                return member.Member.Name;
+
+            throw new ArgumentException("Expression must be a property access expression (e.g., x => x.PropertyName)", nameof(selector));
         }
 
         #endregion

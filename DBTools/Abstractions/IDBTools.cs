@@ -1,22 +1,14 @@
-﻿using DbTools.Model;
-using DBTools.Model;
+using DBTools.Models;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace DbTools.Interfaces
+namespace DBTools.Abstractions
 {
-    interface IDBTools
+    public interface IDBTools
     {
         List<GenericObject> RetrieveObjectSQL();
-
         DataView RetrieveDataSQL();
         void SqlExecuteQuery(string query = "");
-
-
-
     }
 }

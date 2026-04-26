@@ -1,21 +1,20 @@
-﻿using DbTools.Model;
-using DbTools;
+using DBTools.Models;
+using DBTools.Core;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using DBTools.Model;
-using DbTools.Interfaces;
+using DBTools.Abstractions;
 
-namespace DbTools.Controller
+namespace DBTools.Controllers
 {
     public class DBToolsController : IDBTools
     {
-        public DbTools.DBTools DBTools = new DbTools.DBTools();
+        public DBTools.Core.DBTools DBTools = new DBTools.Core.DBTools();
 
-        public DBToolsController(DbTools.DBTools dbTools)
+        public DBToolsController(DBTools.Core.DBTools dbTools)
         {
             DBTools = dbTools;
         }

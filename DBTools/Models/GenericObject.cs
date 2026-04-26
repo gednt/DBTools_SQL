@@ -1,6 +1,7 @@
-﻿using System;
+using System;
+using DBTools.Core;
 
-namespace DBTools.Model
+namespace DBTools.Models
 {
     public class GenericObject
     {
@@ -17,11 +18,11 @@ namespace DBTools.Model
         /// Initiates a new instance of a Generic Object, able to do operations in the database.
         /// </summary>
         /// <param name="dbTools"></param>
-        public GenericObject(DBTools_Utilities.Utils dbTools)
+        public GenericObject(SqlClient dbTools)
         {
             this.dbTools = dbTools;
         }
-        private DBTools_Utilities.Utils dbTools = new DBTools_Utilities.Utils();
+        private SqlClient dbTools = new SqlClient();
         public String[] columns { get; set; }
         public Object[] values { get; set; }
         public String[] valuesString { get; set; }

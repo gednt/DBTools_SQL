@@ -1,247 +1,181 @@
 # DBTools_SQL Security Guide
 
-Comprehensive security documentation for DBTools_SQL library.
+Security features, best practices, and vulnerability prevention for DBTools_SQL.
 
 ## Table of Contents
 
-1. [Security Overview](#security-overview)
-2. [SQL Injection Prevention](#sql-injection-prevention)
+1. [SQL Injection Prevention](#sql-injection-prevention)
+2. [Identifier Validation](#identifier-validation)
 3. [Configuration Security](#configuration-security)
 4. [Input Validation](#input-validation)
-5. [Best Practices](#best-practices)
-6. [Common Vulnerabilities](#common-vulnerabilities)
+5. [Common Vulnerabilities](#common-vulnerabilities)
+6. [Abstractions for Testability](#abstractions-for-testability)
 7. [Security Checklist](#security-checklist)
-
----
-
-## Security Overview
-
-DBTools_SQL implements multiple layers of security to protect your application from common database attacks:
-
-### Defense Layers
-
-1. **Parameterized Queries** - Primary defense against SQL injection
-2. **Identifier Validation** - Prevents malicious table/column names
-3. **Keyword Blocking** - Blocks dangerous SQL keywords
-4. **Mandatory Conditions** - Requires WHERE clauses for UPDATE/DELETE
-5. **Input Sanitization** - Escapes special characters when needed
 
 ---
 
 ## SQL Injection Prevention
 
-### What is SQL Injection?
+SQL injection is the most critical security risk for database applications. DBTools_SQL provides multiple layers of defense.
 
-SQL injection is a code injection technique that exploits security vulnerabilities in an application's database layer by inserting malicious SQL statements.
+### How Parameterized Queries Work
 
-**Example of Vulnerable Code:**
+All CRUD methods in `SqlClient` use parameterized queries by default:
+
 ```csharp
-// ? VULNERABLE - Never do this!
-string username = GetUserInput();
-string query = "SELECT * FROM Users WHERE username = '" + username + "'";
-// If username = "admin' OR '1'='1", this becomes:
-// SELECT * FROM Users WHERE username = 'admin' OR '1'='1'
-// This returns all users!
+using DBTools.Core;
+
+var db = new SqlClient();
+
+// SAFE: Parameterized query
+DataView results = db.Select(
+    "*",
+    "Users",
+    "username = @param0 AND status = @param1",
+    new object[] { userInput, "active" }
+);
 ```
 
-### How DBTools_SQL Protects You
+**What happens internally:**
+1. The WHERE clause uses `@param0`, `@param1` placeholders
+2. Values are passed as `SqlParameter` objects
+3. SQL Server treats parameters as data, not executable code
+4. Even if `userInput` contains SQL, it cannot alter the query
 
-#### 1. Parameterized Queries
+### Attack Scenario: Without Parameterization
 
-All CRUD operations use parameterized queries that separate SQL code from data.
-
-**? SAFE - DBTools_SQL Approach:**
 ```csharp
-string username = GetUserInput(); // Could be anything, even malicious input
-DataView users = utils.Select(
+// VULNERABLE: String concatenation (NOT how DBTools_SQL works)
+string query = "SELECT * FROM Users WHERE username = '" + userInput + "'";
+// If userInput = "admin' OR '1'='1"
+// Result: SELECT * FROM Users WHERE username = 'admin' OR '1'='1'
+// Returns ALL users!
+```
+
+### How DBTools_SQL Prevents This
+
+```csharp
+// SAFE: DBTools_SQL parameterized approach
+DataView results = db.Select(
     "*",
     "Users",
     "username = @param0",
-    new object[] { username }
+    new object[] { "admin' OR '1'='1" }
 );
-// The parameter is treated as DATA, not CODE
-// Even if username = "admin' OR '1'='1", it will look for that exact username
+// The input is treated as a literal string value
+// Searches for a user literally named "admin' OR '1'='1"
+// Returns no results (expected behavior)
 ```
 
-**How it Works:**
-```
-Query sent to SQL Server: SELECT * FROM Users WHERE username = @param0
-Parameter @param0 value: "admin' OR '1'='1"
+### Parameterized Methods Summary
 
-SQL Server treats @param0 as a literal string value, not SQL code.
-Result: Looks for username exactly matching "admin' OR '1'='1" (probably no results)
-```
+| Method | Parameter Style | Security Level |
+|--------|----------------|----------------|
+| `Select(fields, table, whereClause, parameters)` | `@param0`, `@param1`, ... | **Secure** |
+| `Select(queryWithoutSelect, parameters)` | `@param0`, `@param1`, ... | **Secure** |
+| `Insert(fields, table, values, ...)` | `@param0`, `@param1`, ... | **Secure** |
+| `Update(fields, table, values, whereClause, whereParameters)` | `@whereParam0`, `@whereParam1`, ... | **Secure** |
+| `Delete(table, whereClause, parameters)` | `@param0`, `@param1`, ... | **Secure** |
 
-#### 2. Identifier Validation
+### LINQ Expression Security
 
-Table and column names cannot be parameterized, so DBTools_SQL validates them:
+`LinqHelper<TModel>` and `Linq<TModel>` automatically generate parameterized queries from lambda expressions:
 
 ```csharp
-// ? VALID identifiers
-"Users"                    // Simple table name
-"user_name"               // With underscore
-"[User Table]"            // With brackets
-"dbo.Users"               // Schema.table
-"id, name, email"         // Field list
-"*"                       // All columns
+using DBTools.Controllers;
 
-// ? INVALID identifiers - Will throw ArgumentException
-"Users; DROP TABLE--"     // SQL injection attempt
-"Users--"                 // SQL comment
-"table/*comment*/"        // SQL comment
-"Users' OR '1'='1"       // SQL injection attempt
+var userController = new LinqHelper<User>("Users", "Id");
+
+// Lambda expression is automatically converted to parameterized SQL
+var results = userController.Where(u => u.Username == userInput);
+// Generated SQL: SELECT * FROM Users WHERE Username = @param0
+// Parameter: @param0 = userInput (safe)
 ```
 
-**Implementation:**
+**Supported expression operators** are all safely parameterized:
+- `==`, `!=` → `=`, `<>`
+- `>`, `>=`, `<`, `<=` → `>`, `>=`, `<`, `<=`
+- `&&`, `||` → `AND`, `OR`
+- `!` → `NOT`
+
+---
+
+## Identifier Validation
+
+The `SqlValidator` class validates all table and column names to prevent injection through identifiers.
+
+### How It Works
+
 ```csharp
-private static bool IsValidIdentifier(string identifier)
+using DBTools.Core;
+
+var validator = new SqlValidator();
+
+// Valid identifiers
+validator.IsValidIdentifier("Users");           // true
+validator.IsValidIdentifier("user_name");        // true
+validator.IsValidIdentifier("[User Table]");     // true
+validator.IsValidIdentifier("dbo.Users");        // true
+validator.IsValidIdentifier("id, name, email");  // true
+validator.IsValidIdentifier("*");                // true
+
+// Invalid identifiers (blocked)
+validator.IsValidIdentifier("Users; DROP TABLE Users--");  // false (contains ; and --)
+validator.IsValidIdentifier("Users--");                     // false (contains --)
+validator.IsValidIdentifier("Users/*comment*/");            // false (contains /* */)
+validator.IsValidIdentifier("DROP TABLE Users");            // false (contains DROP)
+validator.IsValidIdentifier("DELETE FROM Users");           // false (contains DELETE)
+```
+
+### Validation Rules
+
+1. **Regex Pattern**: `^[\w\.\[\]\,\s\*\(\)]+$`
+   - Allows: alphanumeric, underscores, dots, brackets, commas, spaces, asterisks, parentheses
+   - Blocks: semicolons, quotes, dashes, special characters
+
+2. **Keyword Blocking** (case-insensitive):
+   - `DROP` - Prevents DROP TABLE attacks
+   - `DELETE` - Prevents DELETE injection through identifiers
+
+3. **Comment Blocking**:
+   - `--` - Single-line SQL comments
+   - `;--` - Statement termination + comment
+   - `/*` and `*/` - Multi-line SQL comments
+
+### Automatic Validation
+
+All `SqlClient` CRUD methods automatically validate identifiers:
+
+```csharp
+var db = new SqlClient();
+
+// This throws ArgumentException
+db.Select("*", "Users; DROP TABLE Users--", "", new object[] { });
+// ArgumentException: Invalid table name. Only alphanumeric characters, underscores, dots, and brackets are allowed.
+```
+
+### Custom Validation
+
+You can implement `ISqlValidator` for custom validation rules:
+
+```csharp
+using DBTools.Abstractions;
+
+public class CustomValidator : ISqlValidator
 {
-    // Check for null/empty
-    if (string.IsNullOrWhiteSpace(identifier))
-        return false;
-
-    // Block dangerous keywords
-    string upperIdentifier = identifier.ToUpper();
-    if (upperIdentifier.Contains("DROP") || upperIdentifier.Contains("DELETE"))
-        return false;
-
-    // Block SQL comment patterns
-    if (identifier.Contains("--") || identifier.Contains(";--") ||
-        identifier.Contains("/*") || identifier.Contains("*/"))
-        return false;
-
-    // Only allow safe characters
-    return Regex.IsMatch(identifier, @"^[\w\.\[\]\,\s\*]+$");
+    public bool IsValidIdentifier(string identifier)
+    {
+        // Custom validation logic
+        return !string.IsNullOrWhiteSpace(identifier)
+            && identifier.Length <= 128
+            && !identifier.Contains(";")
+            && !identifier.Contains("'");
+    }
 }
+
+// Use with SqlClient
+var db = new SqlClient(config, new CustomValidator(), queryBuilder);
 ```
-
----
-
-### Attack Examples and Prevention
-
-#### Attack 1: Basic SQL Injection
-
-**Attack:**
-```csharp
-string maliciousInput = "admin' OR '1'='1' --";
-// Attacker tries to bypass authentication
-```
-
-**Without Protection:**
-```sql
-SELECT * FROM Users WHERE username = 'admin' OR '1'='1' --' AND password = 'xxx'
--- Everything after -- is commented out
--- '1'='1' is always true
--- Returns all users!
-```
-
-**With DBTools_SQL:**
-```csharp
-DataView users = utils.Select(
-    "*",
-    "Users",
-    "username = @param0 AND password = @param1",
-    new object[] { maliciousInput, password }
-);
-```
-
-**Result:**
-```sql
-SELECT * FROM Users WHERE username = @param0 AND password = @param1
--- @param0 = "admin' OR '1'='1' --" (treated as literal string)
--- @param1 = password hash
--- No users found with that exact username
-```
-
----
-
-#### Attack 2: Union-Based Injection
-
-**Attack:**
-```csharp
-string maliciousInput = "1 UNION SELECT username, password FROM Admin --";
-```
-
-**Without Protection:**
-```sql
-SELECT * FROM Users WHERE id = 1 UNION SELECT username, password FROM Admin --
--- Returns both user data and admin credentials!
-```
-
-**With DBTools_SQL:**
-```csharp
-DataView users = utils.Select(
-    "*",
-    "Users",
-    "id = @param0",
-    new object[] { maliciousInput }
-);
-```
-
-**Result:**
-```sql
-SELECT * FROM Users WHERE id = @param0
--- @param0 = "1 UNION SELECT username, password FROM Admin --" (literal string)
--- Tries to match id with that entire string (type mismatch error or no results)
-```
-
----
-
-#### Attack 3: Drop Table Attack
-
-**Attack:**
-```csharp
-string maliciousTable = "Users; DROP TABLE Users; --";
-```
-
-**Without Protection:**
-```sql
-SELECT * FROM Users; DROP TABLE Users; --
--- Executes multiple statements, drops table!
-```
-
-**With DBTools_SQL:**
-```csharp
-try
-{
-    DataView users = utils.Select("*", maliciousTable, "", new object[] { });
-}
-catch (ArgumentException ex)
-{
-    // Throws: Invalid table name. Only alphanumeric characters...
-    Console.WriteLine("Attack prevented: " + ex.Message);
-}
-```
-
-**Result:** Request rejected before reaching database.
-
----
-
-#### Attack 4: Second-Order Injection
-
-**Scenario:** Attacker stores malicious data in database, which is later used in unsafe query.
-
-**Attack:**
-```csharp
-// Step 1: Store malicious username
-string maliciousUsername = "admin' OR '1'='1' --";
-utils.Insert(
-    new[] { "username", "email" },
-    "Users",
-    new object[] { maliciousUsername, "evil@example.com" }
-);
-// Safely stored as: username = "admin' OR '1'='1' --"
-
-// Step 2: Later retrieve and use it
-DataView user = utils.Select("*", "Users", "email = @param0", new object[] { "evil@example.com" });
-string retrievedUsername = user[0]["username"].ToString();
-
-// Step 3: Use in another query (still safe!)
-DataView profile = utils.Select("*", "Profiles", "username = @param0", new object[] { retrievedUsername });
-// Still parameterized, still safe!
-```
-
-**Why it's Safe:** Even if malicious data is in the database, DBTools_SQL's parameterized queries prevent it from being executed as SQL code.
 
 ---
 
@@ -249,555 +183,312 @@ DataView profile = utils.Select("*", "Profiles", "username = @param0", new objec
 
 ### Protecting config.json
 
-The `config.json` file contains sensitive database credentials:
+The `config.json` file contains database credentials and must be protected:
 
 ```json
 {
-  "Host": "localhost",
-  "Database": "MyDatabase",
-  "Uid": "db_user",
-  "Password": "SuperSecret123!",
+  "Host": "localhost\\SQLEXPRESS",
+  "Database": "production_db",
+  "Uid": "app_user",
+  "Password": "sensitive_password",
   "Port": "1433"
 }
 ```
 
-### Security Measures
+### Best Practices
 
-#### 1. File System Permissions
+1. **Never commit credentials to version control**
+   ```gitignore
+   # .gitignore
+   config.json
+   appsettings.json
+   ```
 
-**Windows:**
-```powershell
-# Grant read access only to application user
-icacls config.json /grant:r "IIS_IUSRS:(R)"
-icacls config.json /inheritance:r
-```
+2. **Use environment variables in production**
+   ```csharp
+   using Microsoft.Extensions.Configuration;
 
-**Linux:**
-```bash
-# Set restrictive permissions
-chmod 400 config.json
-chown appuser:appuser config.json
-```
+   var configuration = new ConfigurationBuilder()
+       .AddJsonFile("config.json", optional: true)
+       .AddEnvironmentVariables("DBTOOLS_")  // DBTOOLS_Host, DBTOOLS_Password, etc.
+       .Build();
 
-#### 2. Never Commit to Version Control
+   var config = new DbConfiguration(configuration);
+   ```
 
-**Add to .gitignore:**
-```gitignore
-# Database configuration
-config.json
-appsettings.json
-*.config
+3. **Use minimal privilege database users**
+   - Create a dedicated SQL login for your application
+   - Grant only SELECT, INSERT, UPDATE, DELETE on required tables
+   - Deny DDL operations (CREATE, ALTER, DROP)
+   - Deny access to system tables
 
-# Keep template
-!config.template.json
-```
+4. **Encrypt connections**
+   ```json
+   {
+     "Host": "prod-server.database.windows.net",
+     "Database": "mydb",
+     "Uid": "app_user",
+     "Password": "***",
+     "Port": "1433"
+   }
+   ```
+   For Azure SQL, connections are encrypted by default. For on-premises SQL Server, configure SSL/TLS.
 
-**Create config.template.json:**
-```json
-{
-  "Host": "your-server-host",
-  "Database": "your-database-name",
-  "Uid": "your-username",
-  "Password": "your-password",
-  "Port": "1433"
-}
-```
-
-#### 3. Use Environment Variables (Recommended for Production)
-
-**Enhanced Utils constructor:**
-```csharp
-public Utils()
-{
-    // Try environment variables first
-    this.Host = Environment.GetEnvironmentVariable("DB_HOST") 
-                ?? ReadFromConfig("Host");
-    this.Database = Environment.GetEnvironmentVariable("DB_NAME") 
-                    ?? ReadFromConfig("Database");
-    this.Uid = Environment.GetEnvironmentVariable("DB_USER") 
-               ?? ReadFromConfig("Uid");
-    this.Password = Environment.GetEnvironmentVariable("DB_PASSWORD") 
-                    ?? ReadFromConfig("Password");
-    this.Port = Environment.GetEnvironmentVariable("DB_PORT") 
-                ?? ReadFromConfig("Port") 
-                ?? "1433";
-}
-```
-
-**Set environment variables:**
-```powershell
-# Windows
-[Environment]::SetEnvironmentVariable("DB_HOST", "localhost", "User")
-[Environment]::SetEnvironmentVariable("DB_PASSWORD", "SecurePass123", "User")
-
-# Linux
-export DB_HOST=localhost
-export DB_PASSWORD=SecurePass123
-```
-
-#### 4. Use Azure Key Vault (Enterprise)
-
-```csharp
-using Azure.Security.KeyVault.Secrets;
-using Azure.Identity;
-
-public Utils()
-{
-    var client = new SecretClient(
-        new Uri("https://your-vault.vault.azure.net/"),
-        new DefaultAzureCredential()
-    );
-
-    this.Host = client.GetSecret("DBHost").Value.Value;
-    this.Password = client.GetSecret("DBPassword").Value.Value;
-    // ... other settings
-}
-```
-
-#### 5. Encrypt config.json
-
-```csharp
-using System.Security.Cryptography;
-using System.Text;
-
-public class SecureConfig
-{
-    public static string DecryptConfig(string encryptedConfig, string key)
-    {
-        // Implementation of AES decryption
-        // Store only encrypted config.json
-    }
-}
-```
+5. **Rotate credentials regularly**
+   - Change database passwords periodically
+   - Use different credentials for different environments
 
 ---
 
 ## Input Validation
 
-### Validation Layers
+### Application-Layer Validation
 
-#### Layer 1: Application Layer (Your Code)
-
-Always validate input before passing to DBTools_SQL:
+Always validate user input before passing it to database operations:
 
 ```csharp
 public bool CreateUser(string username, string email, int age)
 {
-    // ? Validate at application layer
+    // Validate input
     if (string.IsNullOrWhiteSpace(username))
-        throw new ArgumentException("Username cannot be empty");
-    
+        throw new ArgumentException("Username is required");
+
     if (username.Length > 50)
         throw new ArgumentException("Username too long");
-    
-    if (!IsValidEmail(email))
+
+    if (!email.Contains("@"))
         throw new ArgumentException("Invalid email format");
-    
+
     if (age < 0 || age > 150)
         throw new ArgumentException("Invalid age");
-    
-    // Now safe to use with DBTools_SQL
-    return utils.Insert(
-        new[] { "username", "email", "age" },
-        "Users",
-        new object[] { username, email, age }
-    );
-}
 
-private bool IsValidEmail(string email)
-{
-    return Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
-}
-```
-
-#### Layer 2: DBTools_SQL Layer
-
-DBTools_SQL validates identifiers and uses parameterized queries:
-
-```csharp
-// Automatic validation
-public DataView Select(string _fields, string _table, string whereClause, object[] parameters)
-{
-    // Validates _fields and _table
-    if (!IsValidIdentifier(_fields))
-        throw new ArgumentException("Invalid field names");
-    
-    if (!IsValidIdentifier(_table))
-        throw new ArgumentException("Invalid table name");
-    
-    // Parameters are automatically parameterized (safe)
-    // ...
-}
-```
-
-#### Layer 3: Database Layer
-
-Configure database with least privilege:
-
-```sql
--- Create dedicated application user
-CREATE LOGIN app_user WITH PASSWORD = 'SecurePassword123!';
-CREATE USER app_user FOR LOGIN app_user;
-
--- Grant only necessary permissions
-GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Users TO app_user;
-GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Orders TO app_user;
-
--- Don't grant:
--- DROP, CREATE, ALTER, EXECUTE (unless absolutely necessary)
-```
-
----
-
-## Best Practices
-
-### 1. Always Use Parameterized Methods
-
-```csharp
-// ? CORRECT
-DataView users = utils.Select(
-    "*",
-    "Users",
-    "status = @param0",
-    new object[] { userInput }
-);
-
-// ? WRONG - Never construct queries manually
-string query = $"SELECT * FROM Users WHERE status = '{userInput}'";
-utils.ExecuteQuery(query);
-```
-
-### 2. Validate All User Input
-
-```csharp
-public class UserValidator
-{
-    public static void ValidateUsername(string username)
+    // Safe to use with DBTools_SQL
+    var userController = new LinqHelper<User>("Users", "Id");
+    return userController.Add(new User
     {
-        if (string.IsNullOrWhiteSpace(username))
-            throw new ArgumentException("Username required");
-        
-        if (username.Length < 3 || username.Length > 50)
-            throw new ArgumentException("Username must be 3-50 characters");
-        
-        if (!Regex.IsMatch(username, @"^[a-zA-Z0-9_]+$"))
-            throw new ArgumentException("Username can only contain letters, numbers, and underscores");
-    }
+        Username = username,
+        Email = email,
+        Age = age
+    });
 }
 ```
 
-### 3. Use Least Privilege Principle
+### WHERE Clause Requirements
 
-```sql
--- ? Good: Specific permissions
-GRANT SELECT ON dbo.Users TO app_user;
-GRANT INSERT ON dbo.Orders TO app_user;
-
--- ? Bad: Too broad
-GRANT db_owner TO app_user;
-GRANT sysadmin TO app_user;
-```
-
-### 4. Always Require WHERE Clauses for UPDATE/DELETE
-
-DBTools_SQL enforces this by design:
+DBTools_SQL enforces WHERE clauses on UPDATE and DELETE operations:
 
 ```csharp
-// ? This works
-utils.Update(fields, "Users", values, "id = @whereParam0", new object[] { userId });
+var db = new SqlClient();
 
-// ? This throws ArgumentException
-utils.Update(fields, "Users", values, "", new object[] { });
-// Throws: "Condition is required for UPDATE operations for security reasons."
+// This throws ArgumentException - condition is required
+db.Update(fields, "Users", values, "");
+
+// This throws ArgumentException - WHERE clause is required
+db.Delete("Users", "", new object[] { });
 ```
 
-### 5. Log and Monitor Database Operations
-
-```csharp
-public class SecureUtils : Utils
-{
-    private ILogger logger;
-    
-    public new DataView Select(string fields, string table, string where, object[] params)
-    {
-        logger.LogInformation($"SELECT on {table} by {GetCurrentUser()}");
-        
-        try
-        {
-            return base.Select(fields, table, where, params);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError($"SELECT failed: {ex.Message}");
-            throw;
-        }
-    }
-}
-```
-
-### 6. Handle Sensitive Data
-
-```csharp
-public void CreateUser(string username, string password)
-{
-    // ? Hash passwords before storing
-    string passwordHash = BCrypt.Net.BCrypt.HashPassword(password);
-    
-    utils.Insert(
-        new[] { "username", "password_hash" },
-        "Users",
-        new object[] { username, passwordHash }
-    );
-    
-    // Clear sensitive data from memory
-    password = null;
-}
-```
-
-### 7. Use Transactions for Critical Operations
-
-```csharp
-using (var transaction = new TransactionScope())
-{
-    try
-    {
-        utils.Insert(orderFields, "Orders", orderValues);
-        utils.Insert(paymentFields, "Payments", paymentValues);
-        
-        transaction.Complete();
-    }
-    catch
-    {
-        // Transaction automatically rolls back
-        throw;
-    }
-}
-```
-
-### 8. Implement Rate Limiting
-
-```csharp
-public class RateLimitedUtils
-{
-    private Dictionary<string, DateTime> lastRequest = new();
-    private TimeSpan minInterval = TimeSpan.FromMilliseconds(100);
-    
-    public DataView Select(string fields, string table, string where, object[] params)
-    {
-        string key = $"{table}:{GetCurrentUser()}";
-        
-        if (lastRequest.ContainsKey(key))
-        {
-            var elapsed = DateTime.Now - lastRequest[key];
-            if (elapsed < minInterval)
-            {
-                throw new InvalidOperationException("Rate limit exceeded");
-            }
-        }
-        
-        lastRequest[key] = DateTime.Now;
-        return utils.Select(fields, table, where, params);
-    }
-}
-```
+**Why?** Without a WHERE clause, UPDATE and DELETE affect ALL rows in the table. This is a safety measure to prevent accidental data loss.
 
 ---
 
 ## Common Vulnerabilities
 
-### Vulnerability 1: Trusting Client-Side Validation
+### 1. SQL Injection via User Input
 
-**? WRONG:**
+**Vulnerability**: Concatenating user input into SQL strings
+
 ```csharp
-// Only validating in JavaScript on web page
-// Server-side code:
-string username = Request.Form["username"];
-utils.Insert(fields, "Users", new object[] { username }); // Dangerous!
+// DANGEROUS: Never do this
+string query = "SELECT * FROM Users WHERE name = '" + userName + "'";
+db.ExecuteQuery(query);
 ```
 
-**? CORRECT:**
-```csharp
-// Always validate server-side
-string username = Request.Form["username"];
-if (string.IsNullOrWhiteSpace(username) || username.Length > 50)
-    throw new ArgumentException("Invalid username");
+**Prevention**: Always use parameterized methods
 
-utils.Insert(fields, "Users", new object[] { username }); // Safe
+```csharp
+// SAFE: Use parameterized queries
+DataView results = db.Select("*", "Users", "name = @param0", new object[] { userName });
 ```
 
-### Vulnerability 2: Exposing Error Details
+### 2. Mass Assignment
 
-**? WRONG:**
+**Vulnerability**: Unrestricted model binding allowing users to modify fields they shouldn't
+
 ```csharp
-try
-{
-    utils.Insert(fields, "Users", values);
-}
+// RISK: User could set Role = "admin" if all properties are bound
+var user = new User { Username = "hacker", Role = "admin" };
+userController.Add(user);
+```
+
+**Prevention**: Validate and filter properties before database operations
+
+```csharp
+// SAFE: Explicitly set only allowed fields
+var user = new User { Username = "newuser", Role = "user" }; // Force default role
+userController.Add(user);
+```
+
+### 3. Information Disclosure
+
+**Vulnerability**: Exposing database error messages to users
+
+```csharp
+// DANGEROUS: Exposing raw errors
 catch (Exception ex)
 {
-    // Sending detailed error to client
-    Response.Write($"Error: {ex.Message}"); // Could expose database structure!
+    return ex.ToString(); // May contain connection strings, table names, etc.
 }
 ```
 
-**? CORRECT:**
+**Prevention**: Log errors internally, return generic messages
+
 ```csharp
-try
-{
-    utils.Insert(fields, "Users", values);
-}
 catch (Exception ex)
 {
-    // Log detailed error server-side
-    logger.LogError(ex.ToString());
-    
-    // Send generic error to client
-    Response.Write("An error occurred. Please try again.");
+    logger.LogError(ex, "Database operation failed");
+    return "An error occurred. Please try again later.";
 }
 ```
 
-### Vulnerability 3: Using Dynamic Table Names Without Validation
+### 4. Credential Exposure
 
-**? WRONG:**
+**Vulnerability**: Hardcoded credentials in source code
+
 ```csharp
-string tableName = Request.QueryString["table"];
-// If table = "Users; DROP TABLE Users; --"
-DataView data = utils.Select("*", tableName, "", new object[] { }); // Blocked by validation!
+// DANGEROUS: Never hardcode credentials
+var db = new SqlClient();
+db.Host = "prod-server";
+db.Password = "P@ssw0rd123"; // Exposed in source code
 ```
 
-**? CORRECT:**
+**Prevention**: Use configuration files and environment variables
+
 ```csharp
-string tableName = Request.QueryString["table"];
-
-// Whitelist approach
-List<string> allowedTables = new List<string> { "Users", "Orders", "Products" };
-if (!allowedTables.Contains(tableName))
-    throw new ArgumentException("Invalid table");
-
-DataView data = utils.Select("*", tableName, "", new object[] { }); // Safe
+// SAFE: Configuration from environment
+var config = new DbConfiguration(configuration); // From environment/IConfiguration
+var db = new SqlClient(config, validator, queryBuilder);
 ```
 
-### Vulnerability 4: Second-Order SQL Injection
+---
 
-**Protected by DBTools_SQL:**
+## Abstractions for Testability
+
+DBTools_SQL provides interfaces for all major components, enabling dependency injection and testability:
+
+### Available Interfaces
+
+| Interface | Implementation | Purpose |
+|-----------|---------------|---------|
+| `ISqlClient` | `SqlClient` | Database operations |
+| `IDbConfiguration` | `DbConfiguration` | Configuration access |
+| `ISqlQueryBuilder` | `SqlQueryBuilder` | Query generation |
+| `ISqlValidator` | `SqlValidator` | Identifier validation |
+| `IDBTools` | `DBToolsController` | Basic DB operations |
+
+### Using Interfaces for Security Testing
+
 ```csharp
-// Even if malicious data is in database, parameterized queries prevent execution
-string storedValue = GetFromDatabase(); // Could be "'; DROP TABLE Users; --"
-DataView results = utils.Select("*", "Logs", "message = @param0", new object[] { storedValue });
-// Safe! storedValue is treated as data, not code
+using DBTools.Abstractions;
+
+public class UserRepository
+{
+    private readonly ISqlClient _db;
+
+    public UserRepository(ISqlClient db)
+    {
+        _db = db;
+    }
+
+    public DataView GetActiveUsers()
+    {
+        return _db.Select("*", "Users", "status = @param0", new object[] { "active" });
+    }
+}
+
+// Production: Real SqlClient
+var db = new SqlClient();
+var repo = new UserRepository(db);
+
+// Testing: Mock ISqlClient to verify parameterized queries are used
+var mock = new Mock<ISqlClient>();
+mock.Setup(x => x.Select("*", "Users", "status = @param0", It.IsAny<object[]>()))
+    .Returns(new DataView());
+var testRepo = new UserRepository(mock.Object);
 ```
 
 ---
 
 ## Security Checklist
 
-### Development Phase
+### Development
 
-- [ ] Use parameterized queries for all database operations
-- [ ] Validate all user input at application layer
-- [ ] Never construct SQL queries through string concatenation
-- [ ] Use whitelist validation for table/column names when dynamic
-- [ ] Hash passwords before storing
-- [ ] Implement proper error handling without exposing details
-- [ ] Use HTTPS for all network communications
-- [ ] Implement authentication and authorization
+- [ ] All database queries use parameterized methods
+- [ ] No string concatenation for SQL queries
+- [ ] Input validation on all user-provided data
+- [ ] WHERE clauses on all UPDATE and DELETE operations
+- [ ] Error messages don't expose database details
+- [ ] Sensitive data is not logged
 
-### Deployment Phase
+### Deployment
 
-- [ ] Use environment variables or secure vaults for credentials
-- [ ] Never commit config.json with real credentials
-- [ ] Set restrictive file permissions on config.json
-- [ ] Use least privilege database user
-- [ ] Enable database audit logging
-- [ ] Implement connection encryption (SSL/TLS)
-- [ ] Regular security updates for all dependencies
-- [ ] Configure firewall rules for database access
+- [ ] `config.json` is not in version control
+- [ ] Database user has minimal required privileges
+- [ ] Connection strings use encrypted connections where possible
+- [ ] Credentials are rotated regularly
+- [ ] Environment-specific configuration (dev/staging/prod)
 
-### Testing Phase
+### Testing
 
-- [ ] Test with SQL injection payloads
-- [ ] Perform penetration testing
-- [ ] Code review by security team
-- [ ] Static analysis security testing (SAST)
-- [ ] Dynamic analysis security testing (DAST)
-- [ ] Validate all error messages don't expose sensitive info
-- [ ] Test rate limiting and DoS protection
-- [ ] Verify logging captures security events
+- [ ] SQL injection tests for all user inputs
+- [ ] Identifier validation tests for table/column names
+- [ ] Authorization tests for data access
+- [ ] Error handling tests (no information disclosure)
+- [ ] Configuration security tests
 
-### Monitoring Phase
+### Monitoring
 
-- [ ] Monitor failed login attempts
-- [ ] Alert on suspicious SQL patterns
-- [ ] Log all database operations
-- [ ] Monitor for data exfiltration
-- [ ] Regular security audits
-- [ ] Keep security patches up to date
-- [ ] Review access logs regularly
-- [ ] Implement intrusion detection
+- [ ] Database access logging enabled
+- [ ] Failed authentication attempts monitored
+- [ ] Unusual query patterns detected
+- [ ] Regular security audits performed
+- [ ] Dependency vulnerability scanning
 
 ---
 
-## SQL Injection Testing
+## Security Architecture
 
-### Test Payloads
-
-Test your application with these payloads to verify protection:
-
-```csharp
-string[] testPayloads = new[]
-{
-    "admin' OR '1'='1",
-    "admin' OR '1'='1' --",
-    "admin' OR '1'='1' /*",
-    "' OR 1=1 --",
-    "' UNION SELECT null, null, null --",
-    "'; DROP TABLE Users; --",
-    "1; DROP TABLE Users; --",
-    "admin'/**/OR/**/1=1--",
-    "admin' OR SLEEP(5) --",
-    "admin'; EXEC xp_cmdshell('dir'); --"
-};
-
-foreach (var payload in testPayloads)
-{
-    try
-    {
-        var result = utils.Select("*", "Users", "username = @param0", new object[] { payload });
-        Console.WriteLine($"Payload blocked or handled safely: {payload}");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Exception (expected for invalid input): {ex.Message}");
-    }
-}
+```
+User Input
+    │
+    ▼
+Application Validation ────── Input sanitization, type checking
+    │
+    ▼
+SqlValidator ─────────────── Identifier validation (regex + keyword blocking)
+    │
+    ▼
+Parameterized Queries ─────── SQL parameters (@param0, @whereParam0)
+    │
+    ▼
+SqlClient ─────────────────── CRUD with built-in validation
+    │
+    ▼
+SQL Server ────────────────── Parameterized execution
 ```
 
-**Expected Results:**
-- All payloads should be treated as literal strings
-- No SQL errors should occur
-- No tables should be dropped
-- No unauthorized data should be returned
-
----
-
-## Additional Resources
-
-- [OWASP SQL Injection Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html)
-- [CWE-89: SQL Injection](https://cwe.mitre.org/data/definitions/89.html)
-- [Microsoft SQL Server Security Best Practices](https://docs.microsoft.com/en-us/sql/relational-databases/security/security-best-practices)
+**Defense in Depth**: Multiple layers ensure that even if one layer is bypassed, other layers still provide protection.
 
 ---
 
 ## Reporting Security Issues
 
-If you discover a security vulnerability in DBTools_SQL, please report it privately:
+If you discover a security vulnerability in DBTools_SQL:
 
-1. **Do not** create a public GitHub issue
-2. Email security concerns to: [security@example.com]
-3. Include detailed steps to reproduce
-4. Allow time for patch before public disclosure
+1. **Do not** publicly disclose the vulnerability
+2. Report via GitHub Security Advisories
+3. Provide detailed description and reproduction steps
+4. Allow reasonable time for a fix before public disclosure
 
 ---
 
-**Last Updated**: 2024  
-**Version**: 1.0
+**Remember**: Security is everyone's responsibility. Always use parameterized queries, validate input, and follow the principle of least privilege.
