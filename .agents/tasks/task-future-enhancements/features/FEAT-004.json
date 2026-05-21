@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Migration Tools - Implement a database schema migration system that supports creating migrations (up/down SQL scripts), applying migrations, rolling back migrations, and tracking migration history in a database table.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create DBTools/Abstractions/IMigration.cs with interface: string MigrationId { get; } (timestamp-based, e.g., '20240101120000_CreateUsersTable'), string Description { get; }, string UpSql { get; }, string DownSql { get; }.",
     "Create DBTools/Abstractions/IMigrationRunner.cs with interface: Task ApplyAsync(CancellationToken ct = default) - applies all pending migrations, Task RollbackAsync(string targetMigrationId = null, CancellationToken ct = default) - rolls back to target (or last one if null), Task<IReadOnlyList<MigrationRecord>> GetAppliedMigrationsAsync(CancellationToken ct = default), Task<IReadOnlyList<IMigration>> GetPendingMigrationsAsync(CancellationToken ct = default).",

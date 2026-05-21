@@ -1,5 +1,6 @@
 using DBTools.Abstractions;
 using DBTools.Caching;
+using DBTools.Migrations;
 using DBTools.Pooling;
 using System;
 using System.Collections.Generic;
@@ -78,6 +79,11 @@ namespace DBTools.Configuration
         public QueryCacheOptions CacheOptions { get; set; } = new QueryCacheOptions();
 
         /// <summary>
+        /// Migration configuration options.
+        /// </summary>
+        public MigrationOptions MigrationOptions { get; set; } = new MigrationOptions();
+
+        /// <summary>
         /// Registers a query interceptor.
         /// </summary>
         public DbToolsOptions AddInterceptor(IQueryInterceptor interceptor)
@@ -120,6 +126,20 @@ namespace DBTools.Configuration
                 throw new ArgumentNullException(nameof(configure));
 
             configure(CacheOptions);
+            return this;
+        }
+
+        /// <summary>
+        /// Configures migration options using a fluent builder pattern.
+        /// </summary>
+        /// <param name="configure">Action to configure the migration options.</param>
+        /// <returns>The current DbToolsOptions instance for method chaining.</returns>
+        public DbToolsOptions ConfigureMigrations(Action<MigrationOptions> configure)
+        {
+            if (configure == null)
+                throw new ArgumentNullException(nameof(configure));
+
+            configure(MigrationOptions);
             return this;
         }
 

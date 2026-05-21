@@ -1,6 +1,7 @@
 using DBTools.Abstractions;
 using DBTools.Caching;
 using DBTools.Core;
+using DBTools.Migrations;
 using DBTools.Providers;
 using DBTools.StoredProcedures;
 using Microsoft.Extensions.DependencyInjection;
@@ -101,6 +102,14 @@ namespace DBTools.Configuration
 
             services.AddScoped<IAsyncStoredProcedureClient>(sp =>
                 sp.GetRequiredService<StoredProcedureClient>());
+
+            // Register MigrationRunner as scoped
+            services.AddScoped<IMigrationRunner>(sp =>
+            {
+                var provider = sp.GetRequiredService<IDbProvider>();
+                var config = sp.GetRequiredService<IDbConfiguration>();
+                return new MigrationRunner(provider, config.ConnectionString, options.MigrationOptions);
+            });
 
             return services;
         }
