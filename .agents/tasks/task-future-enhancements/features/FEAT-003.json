@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Query Result Caching - Implement an in-memory query result cache with configurable expiration, manual/automatic cache invalidation on write operations, and integration via the interceptor pipeline.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create DBTools/Caching/IQueryCache.cs with interface: Get(string cacheKey) returning CacheEntry or null, Set(string cacheKey, object result, TimeSpan? expiration), Invalidate(string cacheKey), InvalidateByTable(string tableName), Clear(), GetStatistics() returning CacheStatistics.",
     "Create DBTools/Caching/CacheEntry.cs with: Value (object), CreatedAt (DateTime), ExpiresAt (DateTime?), HitCount (int).",
@@ -33,5 +33,5 @@
     "Verify tests are comprehensive and follow MSTest patterns"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Implemented caching using ConcurrentDictionary from System.Collections.Concurrent and SHA256 from System.Security.Cryptography (both available in .NET 8 base library). The CachingInterceptor implements both IQueryInterceptor and IAsyncQueryInterceptor for full pipeline coverage. In ServiceCollectionExtensions, a single MemoryQueryCache instance is shared between the DI container registration and the CachingInterceptor to ensure cache consistency. The AsyncSqlClient changes are minimal: (1) check context.Properties for CachedResult when IsSuppressed, (2) store DataTable in context.Properties[QueryResult] before calling AfterExecute interceptors."
 }
