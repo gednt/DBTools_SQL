@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Query Result Caching - Implement an in-memory query result cache with configurable expiration, manual/automatic cache invalidation on write operations, and integration via the interceptor pipeline.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create DBTools/Caching/IQueryCache.cs with interface: Get(string cacheKey) returning CacheEntry or null, Set(string cacheKey, object result, TimeSpan? expiration), Invalidate(string cacheKey), InvalidateByTable(string tableName), Clear(), GetStatistics() returning CacheStatistics.",
     "Create DBTools/Caching/CacheEntry.cs with: Value (object), CreatedAt (DateTime), ExpiresAt (DateTime?), HitCount (int).",

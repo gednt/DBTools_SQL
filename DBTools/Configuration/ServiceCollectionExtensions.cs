@@ -1,4 +1,5 @@
 using DBTools.Abstractions;
+using DBTools.Caching;
 using DBTools.Core;
 using DBTools.Providers;
 using DBTools.StoredProcedures;
@@ -42,6 +43,19 @@ namespace DBTools.Configuration
             // Register configuration from options
             services.TryAddSingleton<IDbConfiguration>(sp =>
                 new OptionsDbConfiguration(options));
+
+            // Register caching services if enabled
+            if (options.CacheOptions.Enabled)
+            {
+                var cacheInstance = new MemoryQueryCache(options.CacheOptions);
+
+                services.TryAddSingleton<IQueryCache>(sp => cacheInstance);
+
+                // Auto-add caching interceptor using the shared cache instance
+                var cachingInterceptor = new CachingInterceptor(cacheInstance, options.CacheOptions);
+                options.AddInterceptor((IQueryInterceptor)cachingInterceptor);
+                options.AddInterceptor((IAsyncQueryInterceptor)cachingInterceptor);
+            }
 
             // Register AsyncSqlClient as scoped (one per request/scope)
             services.AddScoped<IAsyncSqlClient>(sp =>

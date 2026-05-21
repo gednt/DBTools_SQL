@@ -362,7 +362,13 @@ namespace DBTools.Core
             };
 
             await RunBeforeInterceptorsAsync(context, ct).ConfigureAwait(false);
-            if (context.IsSuppressed) return new DataTable();
+            if (context.IsSuppressed)
+            {
+                // Return cached result if available
+                if (context.Properties.ContainsKey("CachedResult") && context.Properties["CachedResult"] is DataTable cachedTable)
+                    return cachedTable;
+                return new DataTable();
+            }
 
             var sw = Stopwatch.StartNew();
             try
@@ -381,6 +387,7 @@ namespace DBTools.Core
                 sw.Stop();
                 context.Duration = sw.Elapsed;
                 context.RowsAffected = dt.Rows.Count;
+                context.Properties["QueryResult"] = dt;
                 await RunAfterInterceptorsAsync(context, ct).ConfigureAwait(false);
 
                 _error = null;

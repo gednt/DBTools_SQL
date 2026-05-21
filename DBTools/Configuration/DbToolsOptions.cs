@@ -1,4 +1,5 @@
 using DBTools.Abstractions;
+using DBTools.Caching;
 using DBTools.Pooling;
 using System;
 using System.Collections.Generic;
@@ -72,6 +73,11 @@ namespace DBTools.Configuration
         public ConnectionPoolOptions PoolOptions { get; set; } = new ConnectionPoolOptions();
 
         /// <summary>
+        /// Query cache configuration options.
+        /// </summary>
+        public QueryCacheOptions CacheOptions { get; set; } = new QueryCacheOptions();
+
+        /// <summary>
         /// Registers a query interceptor.
         /// </summary>
         public DbToolsOptions AddInterceptor(IQueryInterceptor interceptor)
@@ -100,6 +106,20 @@ namespace DBTools.Configuration
                 throw new ArgumentNullException(nameof(configure));
 
             configure(PoolOptions);
+            return this;
+        }
+
+        /// <summary>
+        /// Configures query caching options using a fluent builder pattern.
+        /// </summary>
+        /// <param name="configure">Action to configure the cache options.</param>
+        /// <returns>The current DbToolsOptions instance for method chaining.</returns>
+        public DbToolsOptions ConfigureCaching(Action<QueryCacheOptions> configure)
+        {
+            if (configure == null)
+                throw new ArgumentNullException(nameof(configure));
+
+            configure(CacheOptions);
             return this;
         }
 
