@@ -1,6 +1,6 @@
 # DBTools_SQL
 
-A robust .NET library for SQL Server database operations with built-in security features, parameterized queries, LINQ expression support, and comprehensive data manipulation utilities.
+A robust .NET library for multi-provider database operations with built-in security features, parameterized queries, LINQ expression support, and comprehensive data manipulation utilities. Supports **SQL Server**, **PostgreSQL**, **MySQL**, and **SQLite**.
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-blue.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![C#](https://img.shields.io/badge/C%23-latest-green.svg)](https://docs.microsoft.com/en-us/dotnet/csharp/)
@@ -18,6 +18,7 @@ A robust .NET library for SQL Server database operations with built-in security 
   - [CRUD Operations](#crud-operations)
   - [Query Builder](#query-builder)
   - [Data Export](#data-export)
+- [Multi-Provider Support](#multi-provider-support)
 - [LinqHelper - LINQ Expression Queries](#linqhelper---linq-expression-queries)
 - [Linq - Property-Based Queries & JOINs](#linq---property-based-queries--joins)
   - [Query Methods](#query-methods)
@@ -32,18 +33,21 @@ A robust .NET library for SQL Server database operations with built-in security 
 
 ## Features
 
+- **Multi-Provider Support**: SQL Server, PostgreSQL, MySQL, and SQLite with provider-specific SQL dialects
+- **Provider-Agnostic Core**: Uses `System.Data.Common` abstractions (`DbConnection`, `DbCommand`, `DbParameter`) internally
 - **Parameterized Queries**: Built-in protection against SQL injection attacks
 - **CRUD Operations**: Complete Create, Read, Update, Delete functionality
 - **LINQ Expression Queries**: Lambda predicates like `Where(u => u.Age > 18)` with `LinqHelper<TModel>`
 - **Property-Based Queries**: Type-safe `WhereEquals`, `WhereContains`, `WhereBetween`, etc. with `Linq<TModel>`
 - **JOIN Support**: `InnerJoin` and `LeftJoin` with `JoinResult<TLeft, TRight>` and LINQ chaining
 - **Deferred IQueryable**: SQL-translated `AsQueryable()` with `DbQuery<T>` for deferred execution
+- **Provider-Aware Upsert**: `InsertOrUpdate` generates provider-appropriate SQL (MERGE, ON CONFLICT, ON DUPLICATE KEY)
 - **Query Builder**: Helper utilities for dynamic query construction
 - **Data Export**: Export data to CSV and convert CSV to DataTable
-- **Configuration-Based**: JSON configuration file for database settings
+- **Configuration-Based**: JSON configuration file with provider selection
 - **Type-Safe**: Generic object models for type-safe data handling
 - **Input Validation**: Comprehensive identifier validation via `SqlValidator`
-- **Dependency Injection**: Constructor overloads accepting `IDbConfiguration`, `ISqlClient`, etc.
+- **Dependency Injection**: Full DI support with `AddDbTools()` and provider auto-resolution
 - **Error Handling**: Robust error handling and validation throughout
 
 ## Installation
@@ -66,6 +70,7 @@ Create a `config.json` file in your application's root directory:
 
 ```json
 {
+  "Provider": "SqlServer",
   "Host": "localhost\\SQLEXPRESS",
   "Database": "YourDatabaseName",
   "Uid": "YourUsername",
@@ -74,15 +79,79 @@ Create a `config.json` file in your application's root directory:
 }
 ```
 
+### Supported Providers
+
+| Provider Value | Database | Connection String Format |
+|---------------|----------|--------------------------|
+| `SqlServer` | SQL Server | `Data Source=tcp:Host,Port;Initial Catalog=Database;User ID=Uid;Password=Password;TrustServerCertificate=True;` |
+| `PostgreSQL` | PostgreSQL | `Host=Host;Port=Port;Database=Database;Username=Uid;Password=Password;` |
+| `MySQL` | MySQL / MariaDB | `Server=Host;Port=Port;Database=Database;Uid=Uid;Pwd=Password;` |
+| `SQLite` | SQLite | `Data Source=Database;` |
+
+The `Provider` key determines both the SQL dialect and the connection string format. If omitted, it defaults to `SqlServer`.
+
 ### Configuration Parameters
 
 | Parameter | Description | Required | Default |
 |-----------|-------------|----------|---------|
-| Host | SQL Server hostname or IP address | Yes | - |
-| Database | Database name | Yes | - |
-| Uid | Database username | Yes | - |
-| Password | Database password | Yes | - |
-| Port | SQL Server port | Yes | 1433 |
+| Provider | Database provider (`SqlServer`, `PostgreSQL`, `MySQL`, `SQLite`) | No | `SqlServer` |
+| Host | Server hostname or IP address | Yes* | - |
+| Database | Database name (or file path for SQLite) | Yes | - |
+| Uid | Database username | Yes* | - |
+| Password | Database password | Yes* | - |
+| Port | Server port | Yes* | 1433 |
+
+*For SQLite, only `Database` is required (as the file path).
+
+### Provider Configuration Examples
+
+**SQL Server:**
+```json
+{
+  "Provider": "SqlServer",
+  "Host": "localhost\\SQLEXPRESS",
+  "Database": "MyAppDb",
+  "Uid": "sa",
+  "Password": "YourPassword",
+  "Port": "1433"
+}
+```
+
+**PostgreSQL:**
+```json
+{
+  "Provider": "PostgreSQL",
+  "Host": "localhost",
+  "Database": "myappdb",
+  "Uid": "postgres",
+  "Password": "YourPassword",
+  "Port": "5432"
+}
+```
+
+**MySQL:**
+```json
+{
+  "Provider": "MySQL",
+  "Host": "localhost",
+  "Database": "myappdb",
+  "Uid": "root",
+  "Password": "YourPassword",
+  "Port": "3306"
+}
+```
+
+**SQLite:**
+```json
+{
+  "Provider": "SQLite",
+  "Host": "localhost",
+  "Database": "myapp.db",
+  "Uid": "unused",
+  "Password": "unused",
+  "Port": "0"
+}
+```
 
 **Note**: Ensure `config.json` is copied to the output directory. Set **Copy to Output Directory** to **Copy always** or **Copy if newer** in Visual Studio.
 
@@ -92,7 +161,7 @@ Create a `config.json` file in your application's root directory:
 using DBTools.Core;
 using System.Data;
 
-// Initialize SqlClient (automatically reads config.json)
+// Initialize SqlClient (reads config.json including Provider setting)
 var db = new SqlClient();
 
 // Perform a simple SELECT query
@@ -110,54 +179,131 @@ foreach (DataRowView row in results)
 }
 ```
 
+### Using a Specific Provider Programmatically
+
+```csharp
+using DBTools.Core;
+using DBTools.Abstractions;
+using DBTools.Providers;
+
+// Create a provider explicitly
+IDbProvider provider = DbProviderFactory.Create("PostgreSQL");
+// Or: DbProviderFactory.Create(DatabaseProvider.PostgreSQL);
+
+var config = new DbConfiguration(); // Reads config.json
+var validator = new SqlValidator();
+var queryBuilder = new SqlQueryBuilder(validator);
+
+// Pass the provider to SqlClient
+var db = new SqlClient(config, validator, queryBuilder, provider);
+```
+
+### Dependency Injection Setup
+
+```csharp
+using DBTools.Configuration;
+
+// In your Startup.cs or Program.cs
+services.AddDbTools(options =>
+{
+    options.Provider = DatabaseProvider.PostgreSQL;
+    options.Host = "localhost";
+    options.Port = "5432";
+    options.Database = "myappdb";
+    options.Username = "postgres";
+    options.Password = "secret";
+});
+
+// Or with a raw connection string (defaults to SQL Server)
+services.AddDbTools("Data Source=tcp:localhost,1433;Initial Catalog=MyDb;User ID=sa;Password=secret;");
+```
+
+Then inject `SqlClient`, `IAsyncSqlClient`, or `AsyncSqlClient` as needed:
+
+```csharp
+public class UserService
+{
+    private readonly IAsyncSqlClient _db;
+
+    public UserService(IAsyncSqlClient db)
+    {
+        _db = db;
+    }
+}
+```
+
 ## Architecture
 
 DBTools_SQL is organized into the following namespaces:
 
 | Namespace | Description |
 |-----------|-------------|
-| `DBTools.Core` | Core classes: `SqlClient`, `DBTools`, `DbConfiguration`, `SqlQueryBuilder`, `SqlValidator` |
+| `DBTools.Core` | Core classes: `SqlClient`, `AsyncSqlClient`, `DBTools`, `DbConfiguration`, `SqlQueryBuilder`, `SqlValidator` |
+| `DBTools.Abstractions` | Interfaces: `ISqlClient`, `IAsyncSqlClient`, `IDbProvider`, `IDbConfiguration`, `ISqlQueryBuilder`, `ISqlValidator`, `IDBTools` |
+| `DBTools.Providers` | Database providers: `SqlServerProvider`, `PostgresProvider`, `MySqlProvider`, `SqliteProvider`, `DbProviderFactory` |
+| `DBTools.Configuration` | DI support: `ServiceCollectionExtensions`, `DbToolsOptions`, `DatabaseProvider` enum |
 | `DBTools.Controllers` | Controller classes: `LinqHelper<TModel>`, `Linq<TModel>`, `DBToolsController`, `DataExportController` |
 | `DBTools.Models` | Data models: `GenericObject`, `GenericObject_Simple` |
 | `DBTools.Linq` | LINQ infrastructure: `DbQuery<T>`, `DbQueryProvider`, `DbExpressionTranslator`, `JoinQuery<TLeft,TRight>`, `JoinResult<TLeft,TRight>` |
 | `DBTools.Export` | Export utilities: `DataExport` |
-| `DBTools.Abstractions` | Interfaces: `ISqlClient`, `IDbConfiguration`, `ISqlQueryBuilder`, `ISqlValidator`, `IDBTools` |
 
 ### Project Structure
 
 ```
 DBTools/
+├── Abstractions/
+│   ├── IDBTools.cs             # Base DBTools interface
+│   ├── IDbConfiguration.cs     # Configuration interface (includes Provider property)
+│   ├── IDbProvider.cs          # Provider abstraction for multi-database support
+│   ├── ISqlClient.cs           # SqlClient interface
+│   ├── ISqlQueryBuilder.cs     # Query builder interface
+│   ├── ISqlValidator.cs        # Validator interface
+│   ├── IAsyncSqlClient.cs      # Async SQL client interface
+│   ├── IDbTransaction.cs       # Transaction interface
+│   └── IQueryInterceptor.cs    # Query interceptor interface
+├── Providers/
+│   ├── DbProviderFactory.cs    # Factory for creating IDbProvider instances
+│   ├── SqlServerProvider.cs    # SQL Server dialect (MERGE, SCOPE_IDENTITY, [brackets])
+│   ├── PostgresProvider.cs     # PostgreSQL dialect (ON CONFLICT, RETURNING, "quotes")
+│   ├── MySqlProvider.cs        # MySQL dialect (ON DUPLICATE KEY, LAST_INSERT_ID, `backticks`)
+│   └── SqliteProvider.cs       # SQLite dialect (ON CONFLICT, last_insert_rowid, "quotes")
+├── Configuration/
+│   ├── DbToolsOptions.cs       # Options class with DatabaseProvider enum
+│   └── ServiceCollectionExtensions.cs # DI registration (AddDbTools)
 ├── Core/
-│   ├── DBTools.cs              # Base database connection class
+│   ├── DBTools.cs              # Base database connection class (provider-agnostic)
 │   ├── DbConfiguration.cs      # Configuration loading from config.json
 │   ├── SqlClient.cs            # Main utility class (CRUD, QueryBuilder)
+│   ├── AsyncSqlClient.cs       # Async operations with IDbProvider
 │   ├── SqlQueryBuilder.cs      # SQL query generation with validation
-│   └── SqlValidator.cs         # SQL injection prevention validator
+│   ├── SqlValidator.cs         # SQL injection prevention validator
+│   └── DbTransaction.cs        # Transaction management
 ├── Controllers/
 │   ├── DBToolsController.cs    # Legacy DBTools controller
 │   ├── DataExportController.cs # Data export controller
 │   ├── LinqHelper.cs           # LINQ expression-based queries
 │   └── Linq.cs                 # Property-based queries, JOINs, deferred IQueryable
-├── Abstractions/
-│   ├── IDBTools.cs             # Base DBTools interface
-│   ├── IDbConfiguration.cs     # Configuration interface
-│   ├── ISqlClient.cs           # SqlClient interface
-│   ├── ISqlQueryBuilder.cs     # Query builder interface
-│   └── ISqlValidator.cs       # Validator interface
-├── Models/
-│   ├── GenericObject.cs        # Generic data container with Insert/Update
-│   └── GenericObject_Simple.cs # Simple key-value-column container
 ├── Linq/
 │   ├── DbQuery.cs              # IQueryable implementation (deferred execution)
 │   ├── DbQueryProvider.cs      # IQueryProvider (translates LINQ to SQL)
 │   ├── DbExpressionTranslator.cs # Expression tree to SQL translator
 │   ├── JoinQuery.cs            # IQueryable for JOIN queries
 │   └── JoinResult.cs           # JOIN result row (Left + Right models)
+├── Models/
+│   ├── GenericObject.cs        # Generic data container with Insert/Update
+│   └── GenericObject_Simple.cs # Simple key-value-column container
+├── Bulk/
+│   └── BulkOperations.cs       # Bulk insert (SQL Server SqlBulkCopy)
+├── Context/
+│   ├── DbContext.cs            # EF-like context pattern
+│   ├── DbSet.cs                # Entity set
+│   └── ChangeTracker.cs        # Change tracking
+├── Interceptors/
+│   ├── LoggingInterceptor.cs   # Query logging
+│   ├── AuditInterceptor.cs     # Audit trail
+│   └── SoftDeleteInterceptor.cs # Soft delete support
 ├── Export/
 │   └── DataExport.cs           # CSV export and DataTable conversion
-├── Properties/
-│   ├── AssemblyInfo.cs
-│   └── Settings.Designer.cs
 ├── DBTools.csproj
 └── config.json
 ```
@@ -171,23 +317,42 @@ The `SqlClient` class automatically establishes a connection using the configura
 ```csharp
 using DBTools.Core;
 
+// Reads config.json (including Provider key) and connects to the configured database
 var db = new SqlClient();
-// Connection is automatically configured from config.json
+```
+
+**With Explicit Provider:**
+
+```csharp
+using DBTools.Core;
+using DBTools.Abstractions;
+using DBTools.Providers;
+
+// Create a specific provider
+IDbProvider provider = DbProviderFactory.Create(DatabaseProvider.PostgreSQL);
+
+var config = new DbConfiguration();
+var validator = new SqlValidator();
+var queryBuilder = new SqlQueryBuilder(validator);
+
+var db = new SqlClient(config, validator, queryBuilder, provider);
 ```
 
 **Dependency Injection:**
 
 ```csharp
-using DBTools.Core;
-using DBTools.Abstractions;
-using Microsoft.Extensions.Configuration;
+using DBTools.Configuration;
 
-// Custom configuration
-var config = new DbConfiguration(myIConfiguration);
-var validator = new SqlValidator();
-var queryBuilder = new SqlQueryBuilder(validator);
-
-var db = new SqlClient(config, validator, queryBuilder);
+// Register in DI container with provider selection
+services.AddDbTools(options =>
+{
+    options.Provider = DatabaseProvider.MySQL;
+    options.Host = "localhost";
+    options.Port = "3306";
+    options.Database = "myapp";
+    options.Username = "root";
+    options.Password = "secret";
+});
 ```
 
 ### CRUD Operations
@@ -367,6 +532,60 @@ Mouse,29.99,2024-01-16 14:20:00
 
 ---
 
+## Multi-Provider Support
+
+DBTools_SQL supports four database providers with dialect-specific SQL generation. The core library uses `System.Data.Common` abstractions (`DbConnection`, `DbCommand`, `DbParameter`) so all CRUD operations, LINQ queries, and query building work transparently across providers.
+
+### IDbProvider Interface
+
+Each provider implements `IDbProvider`, which handles:
+
+| Capability | SQL Server | PostgreSQL | MySQL | SQLite |
+|------------|-----------|------------|-------|--------|
+| Identifier quoting | `[brackets]` | `"double quotes"` | `` `backticks` `` | `"double quotes"` |
+| Paging | `OFFSET/FETCH` | `LIMIT/OFFSET` | `LIMIT/OFFSET` | `LIMIT/OFFSET` |
+| Last insert ID | `SCOPE_IDENTITY()` | `RETURNING id` | `LAST_INSERT_ID()` | `last_insert_rowid()` |
+| Upsert | `MERGE` | `ON CONFLICT DO UPDATE` | `ON DUPLICATE KEY UPDATE` | `ON CONFLICT DO UPDATE` |
+
+### DbProviderFactory
+
+Use `DbProviderFactory` to create providers from a string or enum:
+
+```csharp
+using DBTools.Providers;
+using DBTools.Configuration;
+
+// From enum
+IDbProvider provider = DbProviderFactory.Create(DatabaseProvider.PostgreSQL);
+
+// From string (case-insensitive)
+IDbProvider provider = DbProviderFactory.Create("mysql");
+IDbProvider provider = DbProviderFactory.Create("postgres"); // alias for PostgreSQL
+```
+
+Supported string values: `"SqlServer"`, `"PostgreSQL"`, `"Postgres"`, `"MySQL"`, `"SQLite"`.
+
+### Provider-Specific Upsert
+
+The `Linq<TModel>.InsertOrUpdate()` method generates provider-appropriate upsert SQL automatically:
+
+```csharp
+var userController = new Linq<User>("Users", "Id", true);
+
+// Generates MERGE (SQL Server), ON CONFLICT (Postgres/SQLite), or ON DUPLICATE KEY (MySQL)
+userController.InsertOrUpdate(user, u => u.Email);
+```
+
+### Switching Providers
+
+To switch from SQL Server to another provider:
+
+1. Install the required NuGet package (see [Requirements](#requirements))
+2. Update `config.json` with the new `Provider` value and connection details
+3. No code changes needed - the same API works across all providers
+
+---
+
 ## LinqHelper - LINQ Expression Queries
 
 The `LinqHelper<TModel>` supports lambda expression predicates similar to Entity Framework's LINQ queries.
@@ -375,7 +594,7 @@ The `LinqHelper<TModel>` supports lambda expression predicates similar to Entity
 
 - **LINQ Lambda Expressions**: Write `Where(u => u.Age > 18)` instead of `"Age > @param0"`
 - **Type Safety**: Compile-time checking for conditions
-- **MySQLDBTools Compatibility**: Same LINQ API across SQL Server and MySQL
+- **MySQLDBTools Compatibility**: Same LINQ API across all supported database providers
 - **Familiar API**: Methods like `Add()`, `Remove()`, `SaveChanges()`, `GetAll()`, `AsQueryable()`
 - **Expression Support**: `==`, `!=`, `>`, `>=`, `<`, `<=`, `&&`, `||`, `!`
 
@@ -814,6 +1033,11 @@ See [API Reference](docs/API_REFERENCE.md) for complete method documentation.
 | `GetInBd(string query)` | `string[]` | First column as string array |
 | `GetInBdDv(string query)` | `DataView` | Query results as DataView |
 
+**Constructors:**
+- `SqlClient()` - Reads config.json, uses the configured Provider
+- `SqlClient(IDbConfiguration, ISqlValidator, ISqlQueryBuilder)` - DI with default provider
+- `SqlClient(IDbConfiguration, ISqlValidator, ISqlQueryBuilder, IDbProvider)` - DI with explicit provider
+
 ### Static Query Helpers
 
 ```csharp
@@ -821,7 +1045,7 @@ public static string Select_Query(string fields, string table, string conditions
 public static string Insert_Query(string[] fields, string table, object[] values, string primaryKeyName, bool autoIncrement)
 public static string Update_Query(string[] fields, string table, string[] values, string condition)
 public static string Delete_Query(string table, string condition)
-public static List<SqlParameter> GenerateSqlParameters(object[] values)
+public static List<DbParameter> GenerateSqlParameters(object[] values)
 ```
 
 ### GenericObject Class
@@ -891,17 +1115,43 @@ catch (Exception ex)
 
 - **.NET 8.0** or higher
 - **C#** latest version
-- **SQL Server** (any version compatible with Microsoft.Data.SqlClient)
+- **Database**: SQL Server, PostgreSQL, MySQL, or SQLite
 
 ### NuGet Dependencies
 
+The core library includes:
+
 | Package | Version | Purpose |
 |---------|---------|---------|
-| Microsoft.Data.SqlClient | 5.2.2 | SQL Server connectivity |
+| Microsoft.Data.SqlClient | 5.2.2 | SQL Server connectivity (included) |
 | Microsoft.Extensions.Configuration | 10.0.1 | Configuration framework |
 | Microsoft.Extensions.Configuration.Json | 10.0.1 | JSON configuration provider |
+| Microsoft.Extensions.DependencyInjection | 10.0.1 | DI framework |
 | NPOI | 2.7.3 | Excel export support |
 | System.Configuration.ConfigurationManager | 10.0.1 | Legacy configuration support |
+
+### Additional Provider Packages
+
+For databases other than SQL Server, add the corresponding NuGet package to your project:
+
+| Provider | Package to Install | Version |
+|----------|-------------------|---------|
+| PostgreSQL | [Npgsql](https://www.nuget.org/packages/Npgsql) | 8.0+ |
+| MySQL | [MySqlConnector](https://www.nuget.org/packages/MySqlConnector) | 2.3+ |
+| SQLite | [Microsoft.Data.Sqlite](https://www.nuget.org/packages/Microsoft.Data.Sqlite) | 8.0+ |
+
+```bash
+# Example: adding PostgreSQL support
+dotnet add package Npgsql
+
+# Example: adding MySQL support
+dotnet add package MySqlConnector
+
+# Example: adding SQLite support
+dotnet add package Microsoft.Data.Sqlite
+```
+
+The library uses reflection to load provider-specific types at runtime, so you only need to install the package for the provider you actually use.
 
 ## Contributing
 
@@ -948,6 +1198,9 @@ DBToolsUnitTest/
 │   ├── SqlClientParameterizedQueryTests.cs
 │   ├── SqlClientQueryBuilderTests.cs
 │   └── SqlClientValidationTests.cs
+├── Providers/
+│   ├── ProviderTests.cs         # SQL dialect tests (quoting, paging, upsert, identity)
+│   └── DbProviderFactoryTests.cs # Factory resolution tests
 ├── Models/
 │   ├── GenericObjectTests.cs
 │   └── GenericObjectSimpleTests.cs
@@ -969,16 +1222,34 @@ DBToolsUnitTest/
 
 **Solution**: Ensure `config.json` is in your application's root directory and set to copy to output directory.
 
+### Provider Package Not Found
+
+**Error**: `InvalidOperationException: Npgsql package is not available` (or similar for MySQL/SQLite)
+
+**Solution**: Install the appropriate NuGet package for your configured provider:
+- PostgreSQL: `dotnet add package Npgsql`
+- MySQL: `dotnet add package MySqlConnector`
+- SQLite: `dotnet add package Microsoft.Data.Sqlite`
+
+### Unknown Provider
+
+**Error**: `ArgumentException: Unknown database provider: 'Oracle'`
+
+**Solution**: Use one of the supported provider values: `SqlServer`, `PostgreSQL`, `MySQL`, `SQLite`.
+
 ### Connection Failed
 
 **Error**: Connection timeouts or authentication failures
 
 **Solutions**:
-- Verify SQL Server is running
+- Verify the database server is running
 - Check firewall settings
 - Verify credentials in `config.json`
-- Ensure SQL Server authentication is enabled
-- Check network connectivity to SQL Server
+- Ensure the correct `Provider` is set in `config.json`
+- Check that the `Port` matches your server configuration
+- For SQL Server: ensure SQL Server authentication is enabled
+- For PostgreSQL: check `pg_hba.conf` for allowed connections
+- For MySQL: verify the user has remote access permissions
 
 ### Invalid Identifier Exception
 
@@ -996,15 +1267,20 @@ DBToolsUnitTest/
 
 ## Roadmap
 
+Completed enhancements:
+
+- [x] Additional database providers (MySQL, PostgreSQL, SQLite)
+- [x] Provider-agnostic core using System.Data.Common abstractions
+- [x] Dependency Injection support with `AddDbTools()`
+- [x] Async/await support (`AsyncSqlClient`)
+- [x] Transaction support (`DbTransaction`)
+- [x] Query interceptors (logging, audit, soft delete)
+
 Future enhancements being considered:
 
-- [ ] Async/await support for asynchronous operations
-- [ ] Transaction support
 - [ ] Connection pooling configuration
 - [ ] Support for stored procedures
-- [ ] Additional database providers (MySQL, PostgreSQL)
 - [ ] Query result caching
-- [ ] Logging and diagnostics
 - [ ] Migration tools
 
 ## License
@@ -1020,6 +1296,6 @@ For issues, questions, or contributions:
 
 ---
 
-**Note**: This library is designed for SQL Server. For other database systems, modifications may be required.
+**Note**: This library supports SQL Server, PostgreSQL, MySQL, and SQLite. Set the `Provider` key in `config.json` or `DbToolsOptions` to select your database.
 
 **Security Notice**: Always store database credentials securely. Never commit `config.json` with real credentials to version control. Consider using environment variables or Azure Key Vault for production deployments.

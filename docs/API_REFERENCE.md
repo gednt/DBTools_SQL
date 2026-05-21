@@ -15,7 +15,9 @@ Complete API documentation for the DBTools_SQL library.
 9. [GenericObject Class](#genericobject-class)
 10. [DataExport Class](#dataexport-class)
 11. [LINQ Infrastructure](#linq-infrastructure)
-12. [Abstractions (Interfaces)](#abstractions-interfaces)
+12. [Provider System](#provider-system)
+13. [Dependency Injection](#dependency-injection)
+14. [Abstractions (Interfaces)](#abstractions-interfaces)
 
 ---
 
@@ -31,7 +33,7 @@ Main utility class providing high-level database operations with built-in securi
 
 #### `SqlClient()`
 
-Initializes a new instance with configuration loaded from `config.json`.
+Initializes a new instance with configuration loaded from `config.json`. The `Provider` key in config.json determines which database provider is used.
 
 ```csharp
 var db = new SqlClient();
@@ -45,7 +47,7 @@ var db = new SqlClient();
 
 #### `SqlClient(IDbConfiguration configuration, ISqlValidator validator, ISqlQueryBuilder queryBuilder)`
 
-Initializes with dependency injection for testability and custom configuration.
+Initializes with dependency injection for testability and custom configuration. Uses the default SQL Server provider.
 
 ```csharp
 var config = new DbConfiguration(myIConfiguration);
@@ -61,18 +63,38 @@ var db = new SqlClient(config, validator, queryBuilder);
 
 ---
 
+#### `SqlClient(IDbConfiguration configuration, ISqlValidator validator, ISqlQueryBuilder queryBuilder, IDbProvider provider)`
+
+Initializes with dependency injection and an explicit database provider. Use this constructor for non-SQL Server databases.
+
+```csharp
+var config = new DbConfiguration(myIConfiguration);
+var validator = new SqlValidator();
+var queryBuilder = new SqlQueryBuilder(validator);
+var provider = DbProviderFactory.Create(DatabaseProvider.PostgreSQL);
+var db = new SqlClient(config, validator, queryBuilder, provider);
+```
+
+**Parameters:**
+- `configuration` (IDbConfiguration) - Database configuration
+- `validator` (ISqlValidator) - SQL identifier validator
+- `queryBuilder` (ISqlQueryBuilder) - SQL query builder
+- `provider` (IDbProvider) - Database provider implementation
+
+---
+
 ### Properties
 
 | Property | Type | Description | Access |
 |----------|------|-------------|--------|
-| `Host` | string | SQL Server hostname or IP address | Get/Set |
+| `Host` | string | Server hostname or IP address | Get/Set |
 | `Database` | string | Database name | Get/Set |
 | `Uid` | string | Database username | Get/Set |
 | `Password` | string | Database password | Get/Set |
-| `Port` | string | SQL Server port number | Get/Set |
+| `Port` | string | Server port number | Get/Set |
 | `Error` | string | Last error message | Get/Set |
 | `ConnectionString` | string | Built connection string | Get/Set |
-| `SqlParameters` | List\<SqlParameter\> | SQL parameters for queries | Get/Set |
+| `SqlParameters` | List\<DbParameter\> | SQL parameters for queries | Get/Set |
 | `Count` | int | Result count from last query | Get/Set |
 | `Configuration` | IDbConfiguration | Loaded configuration | Get |
 | `QueryBuilderInstance` | ISqlQueryBuilder | Query builder instance | Get |
@@ -263,7 +285,7 @@ These methods generate SQL query strings. For better security, use the instance 
 | `Insert_Query(string[] fields, string table, object[] values, string primaryKeyName, bool autoIncrement)` | `string` | INSERT query string |
 | `Update_Query(string[] fields, string table, string[] values, string condition)` | `string` | UPDATE query string |
 | `Delete_Query(string table, string condition)` | `string` | DELETE query string |
-| `GenerateSqlParameters(object[] values)` | `List<SqlParameter>` | SqlParameter list |
+| `GenerateSqlParameters(object[] values)` | `List<DbParameter>` | DbParameter list |
 
 ---
 
@@ -272,7 +294,7 @@ These methods generate SQL query strings. For better security, use the instance 
 **Namespace**: `DBTools.Core`
 **Implements**: `DBTools.Abstractions.IDbConfiguration`
 
-Loads and validates database configuration from `config.json` or `IConfiguration`.
+Loads and validates database configuration from `config.json` or `IConfiguration`. Builds provider-appropriate connection strings based on the configured `Provider` key.
 
 ### Constructors
 
@@ -305,12 +327,19 @@ var config = new DbConfiguration(myConfig);
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `Host` | string | SQL Server hostname (read-only) |
+| `Host` | string | Server hostname (read-only) |
 | `Database` | string | Database name (read-only) |
 | `Uid` | string | Database username (read-only) |
 | `Password` | string | Database password (read-only) |
-| `Port` | string | SQL Server port (read-only) |
-| `ConnectionString` | string | Built connection string (read-only) |
+| `Port` | string | Server port (read-only) |
+| `Provider` | string | Database provider name, e.g. "SqlServer" (read-only) |
+| `ConnectionString` | string | Provider-appropriate connection string (read-only) |
+
+The `ConnectionString` is automatically built in the correct format for the configured provider:
+- **SqlServer**: `Data Source=tcp:Host,Port;Initial Catalog=Database;User ID=Uid;Password=Password;TrustServerCertificate=True;`
+- **PostgreSQL**: `Host=Host;Port=Port;Database=Database;Username=Uid;Password=Password;`
+- **MySQL**: `Server=Host;Port=Port;Database=Database;Uid=Uid;Pwd=Password;`
+- **SQLite**: `Data Source=Database;`
 
 ---
 
@@ -335,7 +364,7 @@ var builder = new SqlQueryBuilder(new SqlValidator());
 | `InsertQuery(string[] fields, string table, object[] values, string primaryKeyName, bool autoIncrement)` | `string` | Generate INSERT query |
 | `UpdateQuery(string[] fields, string table, string[] values, string condition)` | `string` | Generate UPDATE query |
 | `DeleteQuery(string table, string condition)` | `string` | Generate DELETE query |
-| `GenerateSqlParameters(object[] values)` | `List<SqlParameter>` | Generate SqlParameter list |
+| `GenerateSqlParameters(object[] values)` | `List<DbParameter>` | Generate DbParameter list |
 
 ---
 
@@ -736,7 +765,7 @@ Container for database operation data.
 
 ```csharp
 new GenericObject()                          // Without database operations
-new GenericObject(SqlClient dbTools)         // With database operations
+new GenericObject(SqlClient dbTools)         // With database operations (uses configured provider)
 ```
 
 ### Properties
@@ -867,6 +896,166 @@ Represents a single row from a JOIN query.
 
 ---
 
+## Provider System
+
+### IDbProvider Interface
+
+**Namespace**: `DBTools.Abstractions`
+
+Abstracts database provider-specific behavior for multi-provider support. Implementations handle SQL dialect differences.
+
+```csharp
+public interface IDbProvider
+{
+    DbConnection CreateConnection(string connectionString);
+    DbCommand CreateCommand();
+    DbParameter CreateParameter(string name, object value);
+    string ParameterPrefix { get; }
+    string ProviderName { get; }
+    string QuoteIdentifier(string identifier);
+    string BuildPagingClause(int? skip, int? take, string orderByClause);
+    string GetLastInsertedIdSql();
+    bool SupportsMerge { get; }
+    string BuildUpsertSql(string tableName, string[] columns, string matchColumn, string parameterPrefix);
+}
+```
+
+### Built-in Providers
+
+| Class | Namespace | ProviderName | Description |
+|-------|-----------|-------------|-------------|
+| `SqlServerProvider` | `DBTools.Providers` | `"SqlServer"` | SQL Server dialect (brackets, OFFSET/FETCH, MERGE, SCOPE_IDENTITY) |
+| `PostgresProvider` | `DBTools.Providers` | `"PostgreSQL"` | PostgreSQL dialect (double quotes, LIMIT/OFFSET, ON CONFLICT, RETURNING) |
+| `MySqlProvider` | `DBTools.Providers` | `"MySQL"` | MySQL dialect (backticks, LIMIT/OFFSET, ON DUPLICATE KEY, LAST_INSERT_ID) |
+| `SqliteProvider` | `DBTools.Providers` | `"SQLite"` | SQLite dialect (double quotes, LIMIT/OFFSET, ON CONFLICT, last_insert_rowid) |
+
+### DbProviderFactory
+
+**Namespace**: `DBTools.Providers`
+
+Static factory class for creating `IDbProvider` instances from configuration.
+
+#### `Create(DatabaseProvider provider)`
+
+Creates an IDbProvider from a `DatabaseProvider` enum value.
+
+```csharp
+IDbProvider provider = DbProviderFactory.Create(DatabaseProvider.PostgreSQL);
+```
+
+**Parameters:**
+- `provider` (DatabaseProvider) - The enum value
+
+**Returns:** `IDbProvider`
+
+**Throws:** `ArgumentException` if the provider is not supported.
+
+---
+
+#### `Create(string providerName)`
+
+Creates an IDbProvider from a provider name string (case-insensitive).
+
+```csharp
+IDbProvider provider = DbProviderFactory.Create("mysql");
+```
+
+**Parameters:**
+- `providerName` (string) - Provider name: `"SqlServer"`, `"PostgreSQL"`, `"Postgres"`, `"MySQL"`, `"SQLite"`
+
+**Returns:** `IDbProvider`
+
+**Throws:** `ArgumentException` if the provider name is null, empty, or not recognized.
+
+---
+
+### DatabaseProvider Enum
+
+**Namespace**: `DBTools.Configuration`
+
+```csharp
+public enum DatabaseProvider
+{
+    SqlServer,
+    PostgreSQL,
+    MySQL,
+    SQLite
+}
+```
+
+---
+
+## Dependency Injection
+
+### ServiceCollectionExtensions
+
+**Namespace**: `DBTools.Configuration`
+
+Extension methods for registering DBTools services with `Microsoft.Extensions.DependencyInjection`.
+
+#### `AddDbTools(Action<DbToolsOptions> configure)`
+
+Registers all DBTools services with full configuration.
+
+```csharp
+services.AddDbTools(options =>
+{
+    options.Provider = DatabaseProvider.PostgreSQL;
+    options.Host = "localhost";
+    options.Port = "5432";
+    options.Database = "myappdb";
+    options.Username = "postgres";
+    options.Password = "secret";
+    options.CommandTimeout = 60;
+    options.TrustServerCertificate = false;
+});
+```
+
+**Registers:**
+- `DbToolsOptions` as singleton
+- `ISqlValidator` as singleton (`SqlValidator`)
+- `ISqlQueryBuilder` as singleton (`SqlQueryBuilder`)
+- `IDbProvider` as singleton (provider from options)
+- `IDbConfiguration` as singleton (built from options)
+- `IAsyncSqlClient` / `AsyncSqlClient` as scoped
+- `SqlClient` as transient
+
+---
+
+#### `AddDbTools(string connectionString)`
+
+Convenience overload that registers with a connection string (defaults to SQL Server).
+
+```csharp
+services.AddDbTools("Data Source=tcp:localhost,1433;Initial Catalog=MyDb;User ID=sa;Password=secret;");
+```
+
+---
+
+### DbToolsOptions
+
+**Namespace**: `DBTools.Configuration`
+
+Options class for configuring DBTools via dependency injection.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `ConnectionString` | string | null | Full connection string (overrides individual properties) |
+| `Host` | string | null | Server host/address |
+| `Database` | string | null | Database name |
+| `Username` | string | null | Database username |
+| `Password` | string | null | Database password |
+| `Port` | string | "1433" | Server port |
+| `CommandTimeout` | int | 30 | Command timeout in seconds |
+| `TrustServerCertificate` | bool | true | Trust server certificate |
+| `Provider` | DatabaseProvider | SqlServer | Database provider to use |
+
+**Methods:**
+- `AddInterceptor(IQueryInterceptor)` - Registers a query interceptor
+- `AddInterceptor(IAsyncQueryInterceptor)` - Registers an async query interceptor
+
+---
+
 ## Abstractions (Interfaces)
 
 ### ISqlClient
@@ -906,6 +1095,7 @@ public interface IDbConfiguration
     string Password { get; }
     string Port { get; }
     string ConnectionString { get; }
+    string Provider { get; }
 }
 ```
 
@@ -922,7 +1112,7 @@ public interface ISqlQueryBuilder
     string InsertQuery(string[] fields, string table, object[] values, string primaryKeyName = "", bool autoIncrement = true);
     string UpdateQuery(string[] fields, string table, string[] values, string condition = "");
     string DeleteQuery(string table, string condition);
-    List<SqlParameter> GenerateSqlParameters(object[] values);
+    List<DbParameter> GenerateSqlParameters(object[] values);
 }
 ```
 
