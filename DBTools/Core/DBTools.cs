@@ -37,6 +37,11 @@ namespace DBTools.Core
         protected IDbProvider _provider;
         #endregion
 
+        /// <summary>
+        /// Exposes the current database provider for use by subclasses and consumers.
+        /// </summary>
+        public IDbProvider Provider => _provider;
+
         #region public getters and setters
         public DBTools()
         {
@@ -165,6 +170,11 @@ namespace DBTools.Core
         ///
         /// </summary>
         public string Port { get => port; set => port = value; }
+        /// <summary>
+        /// Gets or sets the connection string. The auto-generated format uses SQL Server syntax.
+        /// Users of non-SQL Server providers (PostgreSQL, MySQL, SQLite) should set this property
+        /// directly with a provider-appropriate connection string rather than relying on auto-generation.
+        /// </summary>
         public string ConnectionString
         {
 
@@ -176,6 +186,8 @@ namespace DBTools.Core
                     return _connectionString;
                 }
 
+                // NOTE: This auto-generates a SQL Server format connection string.
+                // Non-SQL Server providers should supply their own connection string via the setter.
                 _connectionString = $"Data Source=tcp:{Host},{Port};Initial Catalog={Database};User ID={Uid};Password={Password};TrustServerCertificate=True;";
 
 
@@ -293,6 +305,8 @@ namespace DBTools.Core
                         {
                             dataTable.Load(reader);
                         }
+                        // Previously set to dataSet.Tables.Count (number of result sets from SqlDataAdapter).
+                        // Now hardcoded to 1 because DbDataReader + DataTable.Load() reads only one result set.
                         this.Count = 1;
                         defaultView = dataTable.DefaultView;
                     }
@@ -421,6 +435,8 @@ namespace DBTools.Core
                         {
                             dataTable.Load(reader);
                         }
+                        // Previously set to dataSet.Tables.Count (number of result sets from SqlDataAdapter).
+                        // Now hardcoded to 1 because DbDataReader + DataTable.Load() reads only one result set.
                         this.Count = 1;
                         defaultView = dataTable.DefaultView;
                     }

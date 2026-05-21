@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using Microsoft.Data.SqlClient;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -122,7 +121,7 @@ namespace DBTools.Controllers
             if (sqlStatements.Count == 0)
                 return true;
 
-            using (var conn = new Microsoft.Data.SqlClient.SqlConnection(_utils.ConnectionString))
+            using (var conn = _utils.Provider.CreateConnection(_utils.ConnectionString))
             {
                 conn.Open();
                 using (var transaction = conn.BeginTransaction())
@@ -131,9 +130,12 @@ namespace DBTools.Controllers
                     {
                         for (int i = 0; i < sqlStatements.Count; i++)
                         {
-                            using (var cmd = new Microsoft.Data.SqlClient.SqlCommand(sqlStatements[i], conn, transaction))
+                            using (var cmd = conn.CreateCommand())
                             {
-                                cmd.Parameters.AddRange(sqlParameters[i].ToArray());
+                                cmd.CommandText = sqlStatements[i];
+                                cmd.Transaction = transaction;
+                                foreach (var param in sqlParameters[i])
+                                    cmd.Parameters.Add(param);
                                 cmd.ExecuteNonQuery();
                             }
                         }

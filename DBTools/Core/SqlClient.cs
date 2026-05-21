@@ -1,7 +1,6 @@
 using DBTools.Abstractions;
 using DBTools.Models;
 using DBTools.Providers;
-using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -283,7 +282,7 @@ namespace DBTools.Core
             for (int i = 0; i < parameters.Length; i++)
             {
                 string paramName = "@param" + i;
-                sqlParams.Add(new SqlParameter(paramName, parameters[i] ?? (object)DBNull.Value));
+                sqlParams.Add(_provider.CreateParameter(paramName, parameters[i] ?? (object)DBNull.Value));
             }
 
             if (!string.IsNullOrEmpty(whereClause))
@@ -319,7 +318,7 @@ namespace DBTools.Core
                 fields += _fields[cont] + ",";
                 string paramName = "@param" + cont;
                 paramPlaceholders += paramName + ",";
-                parameters.Add(new SqlParameter(paramName, _values[cont] ?? (object)DBNull.Value));
+                parameters.Add(_provider.CreateParameter(paramName, _values[cont] ?? (object)DBNull.Value));
             }
 
             if (auto_increment.Equals(true))
@@ -387,7 +386,7 @@ namespace DBTools.Core
             {
                 string paramName = "@param" + cont;
                 setClause += _fields[cont] + "=" + paramName + ",";
-                parameters.Add(new SqlParameter(paramName, _values[cont] ?? (object)DBNull.Value));
+                parameters.Add(_provider.CreateParameter(paramName, _values[cont] ?? (object)DBNull.Value));
             }
 
             setClause = setClause.Substring(0, setClause.Length - 1);
@@ -449,7 +448,7 @@ namespace DBTools.Core
             {
                 string paramName = "@param" + cont;
                 setClause += _fields[cont] + "=" + paramName + ",";
-                parameters.Add(new SqlParameter(paramName, _values[cont] ?? (object)DBNull.Value));
+                parameters.Add(_provider.CreateParameter(paramName, _values[cont] ?? (object)DBNull.Value));
             }
 
             setClause = setClause.Substring(0, setClause.Length - 1);
@@ -457,7 +456,7 @@ namespace DBTools.Core
             for (int i = 0; i < whereParameters.Length; i++)
             {
                 string paramName = "@whereParam" + i;
-                parameters.Add(new SqlParameter(paramName, whereParameters[i] ?? (object)DBNull.Value));
+                parameters.Add(_provider.CreateParameter(paramName, whereParameters[i] ?? (object)DBNull.Value));
             }
 
             String query = String.Format("UPDATE {0} SET {1} WHERE {2}", _table, setClause, whereClause);
@@ -498,7 +497,7 @@ namespace DBTools.Core
             for (int i = 0; i < parameters.Length; i++)
             {
                 string paramName = "@param" + i;
-                sqlParams.Add(new SqlParameter(paramName, parameters[i] ?? (object)DBNull.Value));
+                sqlParams.Add(_provider.CreateParameter(paramName, parameters[i] ?? (object)DBNull.Value));
             }
 
             String query = String.Format("DELETE FROM {0} WHERE {1}", _table, whereClause);
@@ -535,7 +534,7 @@ namespace DBTools.Core
             for (int i = 0; i < parameters.Length; i++)
             {
                 string paramName = "@param" + i;
-                sqlParams.Add(new SqlParameter(paramName, parameters[i] ?? (object)DBNull.Value));
+                sqlParams.Add(_provider.CreateParameter(paramName, parameters[i] ?? (object)DBNull.Value));
             }
 
             SqlParameters = sqlParams;
@@ -563,7 +562,7 @@ namespace DBTools.Core
             for (int i = 0; i < parameters.Length; i++)
             {
                 string paramName = "@param" + i;
-                sqlParams.Add(new SqlParameter(paramName, parameters[i] ?? (object)DBNull.Value));
+                sqlParams.Add(_provider.CreateParameter(paramName, parameters[i] ?? (object)DBNull.Value));
             }
 
             SqlParameters = sqlParams;

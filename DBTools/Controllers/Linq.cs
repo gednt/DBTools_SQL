@@ -1,7 +1,6 @@
 using DBTools.Core;
 using DBTools.Linq;
 using DBTools.Abstractions;
-using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -618,7 +617,7 @@ namespace DBTools.Controllers
             {
                 string pName = $"@mp{pIdx}";
                 var val = prop.GetValue(model);
-                parameters.Add(new SqlParameter(pName, val ?? (object)DBNull.Value));
+                parameters.Add(Utils.Provider.CreateParameter(pName, val ?? (object)DBNull.Value));
                 setClauseParts.Add($"target.{prop.Name} = {pName}");
                 pIdx++;
             }
@@ -627,10 +626,10 @@ namespace DBTools.Controllers
             var insertCols = string.Join(", ", allProps.Select(p => p.Name));
             var insertVals = string.Join(", ", parameters.Select(p => p.ParameterName));
 
-            // ON clause — match by the specified property
+            // ON clause -- match by the specified property
             string matchParamName = "@mp_match";
             var matchValue = matchPropInfo.GetValue(model);
-            parameters.Add(new SqlParameter(matchParamName, matchValue ?? (object)DBNull.Value));
+            parameters.Add(Utils.Provider.CreateParameter(matchParamName, matchValue ?? (object)DBNull.Value));
 
             string mergeSql =
                 $"MERGE INTO {TableName} AS target " +

@@ -163,6 +163,12 @@ namespace DBTools.Core
             return query;
         }
 
+        /// <summary>
+        /// Generates a list of DbParameter instances from the given values.
+        /// NOTE: This method creates SqlParameter instances directly because SqlQueryBuilder
+        /// is typically used in conjunction with SqlClient (SQL Server). For non-SqlServer providers,
+        /// callers should use IDbProvider.CreateParameter() instead.
+        /// </summary>
         public List<DbParameter> GenerateSqlParameters(object[] values)
         {
             List<DbParameter> sqlParams = new List<DbParameter>();
