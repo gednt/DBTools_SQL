@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Connection Pooling Configuration - Add configurable connection pool settings (min/max pool size, connection lifetime, idle timeout) per provider, integrated into DbToolsOptions and the connection string builder.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create DBTools/Pooling/ConnectionPoolOptions.cs with a class containing properties: MinPoolSize (int, default 0), MaxPoolSize (int, default 100), ConnectionLifetimeSeconds (int, default 0 meaning unlimited), ConnectionIdleTimeoutSeconds (int, default 300), Pooling (bool, default true). Include XML docs.",
     "Add a ConnectionPoolOptions property to DBTools/Configuration/DbToolsOptions.cs (public ConnectionPoolOptions PoolOptions { get; set; } = new ConnectionPoolOptions()).",
@@ -23,5 +23,5 @@
     "Verify test file follows MSTest patterns used in existing tests"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Added InternalsVisibleTo attribute in DBTools.csproj to allow test project access to internal BuildConnectionString method. This was required since no existing mechanism exposed internal members to the test assembly."
 }
