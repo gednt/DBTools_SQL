@@ -608,38 +608,27 @@ namespace DBTools.Controllers
                 .Where(p => p.CanRead && p.CanWrite)
                 .ToList();
 
-            var parameters = new List<DbParameter>();
-            int pIdx = 0;
+            var columns = allProps.Select(p => p.Name).ToArray();
+            var provider = Utils.Provider;
 
-            // SET clause values (all writable properties)
-            var setClauseParts = new List<string>();
-            foreach (var prop in allProps)
+            // Build upsert SQL using provider's dialect
+            string upsertSql = provider.BuildUpsertSql(TableName, columns, matchPropName, provider.ParameterPrefix);
+
+            // Build parameters: p0, p1, ... for columns, then 'match' for the match column
+            var parameters = new List<DbParameter>();
+            for (int i = 0; i < allProps.Count; i++)
             {
-                string pName = $"@mp{pIdx}";
-                var val = prop.GetValue(model);
-                parameters.Add(Utils.Provider.CreateParameter(pName, val ?? (object)DBNull.Value));
-                setClauseParts.Add($"target.{prop.Name} = {pName}");
-                pIdx++;
+                var val = allProps[i].GetValue(model);
+                parameters.Add(provider.CreateParameter($"{provider.ParameterPrefix}p{i}", val ?? (object)DBNull.Value));
             }
 
-            // INSERT column + value lists (same properties)
-            var insertCols = string.Join(", ", allProps.Select(p => p.Name));
-            var insertVals = string.Join(", ", parameters.Select(p => p.ParameterName));
-
-            // ON clause -- match by the specified property
-            string matchParamName = "@mp_match";
+            // Add match parameter (used by SqlServer's MERGE USING clause)
             var matchValue = matchPropInfo.GetValue(model);
-            parameters.Add(Utils.Provider.CreateParameter(matchParamName, matchValue ?? (object)DBNull.Value));
+            parameters.Add(provider.CreateParameter($"{provider.ParameterPrefix}match", matchValue ?? (object)DBNull.Value));
 
-            string mergeSql =
-                $"MERGE INTO {TableName} AS target " +
-                $"USING (SELECT {matchParamName} AS {matchPropName}) AS source ON target.{matchPropName} = source.{matchPropName} " +
-                $"WHEN MATCHED THEN UPDATE SET {string.Join(", ", setClauseParts)} " +
-                $"WHEN NOT MATCHED THEN INSERT ({insertCols}) VALUES ({insertVals});";
-
-            Utils.Query = mergeSql;
+            Utils.Query = upsertSql;
             Utils.SqlParameters = parameters;
-            Utils.ExecuteQuery(mergeSql);
+            Utils.ExecuteQuery(upsertSql);
             Utils.SqlParameters = null;
 
             return string.IsNullOrEmpty(Utils.Error);

@@ -114,7 +114,7 @@ namespace DBTools.Controllers
                 var genericObj = genericObjects[0];
 
                 string sql = _queryBuilder.InsertQuery(genericObj.columns, _tableName, genericObj.valuesString, _primaryKeyName, _autoIncrement);
-                sqlParameters.Add(_queryBuilder.GenerateSqlParameters(genericObj.values));
+                sqlParameters.Add(_queryBuilder.GenerateSqlParameters(genericObj.values, _utils.Provider));
                 sqlStatements.Add(sql);
             }
 

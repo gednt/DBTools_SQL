@@ -63,7 +63,7 @@ namespace DBTools.Core
                     ex);
             }
 
-            ConnectionString = $"Data Source=tcp:{Host},{Port};Initial Catalog={Database};User ID={Uid};Password={Password};";
+            ConnectionString = BuildConnectionString(Provider, Host, Port, Database, Uid, Password);
         }
 
         public DbConfiguration(IConfiguration configuration)
@@ -89,7 +89,18 @@ namespace DBTools.Core
                     string.Join(", ", missingKeys));
             }
 
-            ConnectionString = $"Data Source=tcp:{Host},{Port};Initial Catalog={Database};User ID={Uid};Password={Password};";
+            ConnectionString = BuildConnectionString(Provider, Host, Port, Database, Uid, Password);
+        }
+
+        private static string BuildConnectionString(string provider, string host, string port, string database, string uid, string password)
+        {
+            return provider?.ToLowerInvariant() switch
+            {
+                "postgresql" or "postgres" => $"Host={host};Port={port};Database={database};Username={uid};Password={password};",
+                "mysql" => $"Server={host};Port={port};Database={database};Uid={uid};Pwd={password};",
+                "sqlite" => $"Data Source={database};",
+                _ => $"Data Source=tcp:{host},{port};Initial Catalog={database};User ID={uid};Password={password};TrustServerCertificate=True;"
+            };
         }
     }
 }

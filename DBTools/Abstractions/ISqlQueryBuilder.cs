@@ -10,5 +10,6 @@ namespace DBTools.Abstractions
         string UpdateQuery(string[] fields, string table, string[] values, string condition = "");
         string DeleteQuery(string table, string condition);
         List<DbParameter> GenerateSqlParameters(object[] values);
+        List<DbParameter> GenerateSqlParameters(object[] values, IDbProvider provider);
     }
 }

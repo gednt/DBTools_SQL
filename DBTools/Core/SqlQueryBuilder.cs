@@ -179,5 +179,20 @@ namespace DBTools.Core
             }
             return sqlParams;
         }
+
+        /// <summary>
+        /// Generates a list of DbParameter instances from the given values using the specified provider.
+        /// This overload creates provider-appropriate parameters and should be used for non-SqlServer providers.
+        /// </summary>
+        public List<DbParameter> GenerateSqlParameters(object[] values, IDbProvider provider)
+        {
+            List<DbParameter> sqlParams = new List<DbParameter>();
+            for (int i = 0; i < values.Length; i++)
+            {
+                string paramName = "@param" + i;
+                sqlParams.Add(provider.CreateParameter(paramName, values[i] ?? (object)DBNull.Value));
+            }
+            return sqlParams;
+        }
     }
 }

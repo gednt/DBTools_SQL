@@ -69,7 +69,8 @@ namespace DBTools.Configuration
                 var config = sp.GetRequiredService<IDbConfiguration>();
                 var validator = sp.GetRequiredService<ISqlValidator>();
                 var queryBuilder = sp.GetRequiredService<ISqlQueryBuilder>();
-                return new SqlClient(config, validator, queryBuilder);
+                var provider = sp.GetRequiredService<IDbProvider>();
+                return new SqlClient(config, validator, queryBuilder, provider);
             });
 
             return services;
