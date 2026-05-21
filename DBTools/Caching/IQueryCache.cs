@@ -24,6 +24,15 @@ namespace DBTools.Caching
         void Set(string cacheKey, object result, TimeSpan? expiration = null);
 
         /// <summary>
+        /// Stores a result in the cache and associates it with a table for invalidation tracking.
+        /// </summary>
+        /// <param name="cacheKey">The cache key.</param>
+        /// <param name="result">The result object to cache.</param>
+        /// <param name="tableName">The table name to associate with this entry for auto-invalidation.</param>
+        /// <param name="expiration">Optional expiration override. Uses default if null.</param>
+        void Set(string cacheKey, object result, string tableName, TimeSpan? expiration = null);
+
+        /// <summary>
         /// Invalidates (removes) a specific cache entry by key.
         /// </summary>
         /// <param name="cacheKey">The cache key to invalidate.</param>

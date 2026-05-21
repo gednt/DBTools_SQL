@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -203,6 +204,11 @@ namespace DBTools.Migrations
         internal string GenerateCreateTableSql()
         {
             var tableName = _options.MigrationTableName;
+
+            if (!Regex.IsMatch(tableName, @"^[a-zA-Z_][a-zA-Z0-9_]*$"))
+                throw new ArgumentException(
+                    $"Invalid migration table name '{tableName}'. Table name must match pattern [a-zA-Z_][a-zA-Z0-9_]*.",
+                    nameof(tableName));
 
             return _provider.ProviderName switch
             {

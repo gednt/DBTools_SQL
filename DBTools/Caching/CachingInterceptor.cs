@@ -60,9 +60,9 @@ namespace DBTools.Caching
                     var cacheKey = (string)context.Properties["CacheKey"];
                     var result = context.Properties["QueryResult"];
 
-                    if (_cache is MemoryQueryCache memoryCache)
+                    if (!string.IsNullOrEmpty(context.TableName))
                     {
-                        memoryCache.Set(cacheKey, result, context.TableName, _options.DefaultExpiration);
+                        _cache.Set(cacheKey, result, context.TableName, _options.DefaultExpiration);
                     }
                     else
                     {

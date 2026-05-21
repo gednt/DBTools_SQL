@@ -162,14 +162,21 @@ namespace DBTools.Configuration
 
             if (PoolOptions != null)
             {
-                baseConnectionString += Provider switch
+                if (PoolOptions.Pooling)
                 {
-                    DatabaseProvider.SqlServer => $"Min Pool Size={PoolOptions.MinPoolSize};Max Pool Size={PoolOptions.MaxPoolSize};Connection Lifetime={PoolOptions.ConnectionLifetimeSeconds};Pooling={PoolOptions.Pooling};",
-                    DatabaseProvider.PostgreSQL => $"Minimum Pool Size={PoolOptions.MinPoolSize};Maximum Pool Size={PoolOptions.MaxPoolSize};Connection Idle Lifetime={PoolOptions.ConnectionIdleTimeoutSeconds};Pooling={PoolOptions.Pooling};",
-                    DatabaseProvider.MySQL => $"MinimumPoolSize={PoolOptions.MinPoolSize};MaximumPoolSize={PoolOptions.MaxPoolSize};ConnectionLifeTime={PoolOptions.ConnectionLifetimeSeconds};Pooling={PoolOptions.Pooling};",
-                    DatabaseProvider.SQLite => $"Pooling={PoolOptions.Pooling};",
-                    _ => string.Empty
-                };
+                    baseConnectionString += Provider switch
+                    {
+                        DatabaseProvider.SqlServer => $"Min Pool Size={PoolOptions.MinPoolSize};Max Pool Size={PoolOptions.MaxPoolSize};Connection Lifetime={PoolOptions.ConnectionLifetimeSeconds};Pooling={PoolOptions.Pooling};",
+                        DatabaseProvider.PostgreSQL => $"Minimum Pool Size={PoolOptions.MinPoolSize};Maximum Pool Size={PoolOptions.MaxPoolSize};Connection Idle Lifetime={PoolOptions.ConnectionIdleTimeoutSeconds};Pooling={PoolOptions.Pooling};",
+                        DatabaseProvider.MySQL => $"MinimumPoolSize={PoolOptions.MinPoolSize};MaximumPoolSize={PoolOptions.MaxPoolSize};ConnectionLifeTime={PoolOptions.ConnectionLifetimeSeconds};Pooling={PoolOptions.Pooling};",
+                        DatabaseProvider.SQLite => $"Pooling={PoolOptions.Pooling};",
+                        _ => string.Empty
+                    };
+                }
+                else
+                {
+                    baseConnectionString += "Pooling=False;";
+                }
             }
 
             return baseConnectionString;

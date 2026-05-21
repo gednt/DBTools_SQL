@@ -119,7 +119,7 @@ namespace DBToolsUnitTest.Pooling
                 p.MinPoolSize = 3;
                 p.MaxPoolSize = 30;
                 p.ConnectionLifetimeSeconds = 900;
-                p.Pooling = false;
+                p.Pooling = true;
             });
 
             var connectionString = options.BuildConnectionString();
@@ -127,7 +127,34 @@ namespace DBToolsUnitTest.Pooling
             Assert.IsTrue(connectionString.Contains("MinimumPoolSize=3;"));
             Assert.IsTrue(connectionString.Contains("MaximumPoolSize=30;"));
             Assert.IsTrue(connectionString.Contains("ConnectionLifeTime=900;"));
+            Assert.IsTrue(connectionString.Contains("Pooling=True;"));
+        }
+
+        [TestMethod]
+        public void BuildConnectionString_MySQL_PoolingDisabled_OnlyIncludesPoolingFalse()
+        {
+            var options = new DbToolsOptions
+            {
+                Host = "localhost",
+                Database = "testdb",
+                Username = "user",
+                Password = "pass",
+                Provider = DatabaseProvider.MySQL
+            };
+            options.ConfigurePooling(p =>
+            {
+                p.MinPoolSize = 3;
+                p.MaxPoolSize = 30;
+                p.ConnectionLifetimeSeconds = 900;
+                p.Pooling = false;
+            });
+
+            var connectionString = options.BuildConnectionString();
+
             Assert.IsTrue(connectionString.Contains("Pooling=False;"));
+            Assert.IsFalse(connectionString.Contains("MinimumPoolSize="));
+            Assert.IsFalse(connectionString.Contains("MaximumPoolSize="));
+            Assert.IsFalse(connectionString.Contains("ConnectionLifeTime="));
         }
 
         [TestMethod]

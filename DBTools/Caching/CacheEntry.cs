@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 namespace DBTools.Caching
 {
@@ -7,6 +8,8 @@ namespace DBTools.Caching
     /// </summary>
     public class CacheEntry
     {
+        private int _hitCount;
+
         /// <summary>
         /// The cached result value.
         /// </summary>
@@ -24,12 +27,26 @@ namespace DBTools.Caching
 
         /// <summary>
         /// Number of times this entry has been retrieved from cache.
+        /// Thread-safe via Interlocked operations.
         /// </summary>
-        public int HitCount { get; set; }
+        public int HitCount
+        {
+            get => Volatile.Read(ref _hitCount);
+            set => Interlocked.Exchange(ref _hitCount, value);
+        }
 
         /// <summary>
         /// Last time this entry was accessed (used for LRU eviction).
+        /// Eventual consistency is acceptable for this field under concurrent access.
         /// </summary>
         public DateTime LastAccessedAt { get; set; }
+
+        /// <summary>
+        /// Atomically increments the hit count.
+        /// </summary>
+        internal void IncrementHitCount()
+        {
+            Interlocked.Increment(ref _hitCount);
+        }
     }
 }

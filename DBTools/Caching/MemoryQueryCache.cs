@@ -50,8 +50,8 @@ namespace DBTools.Caching
                     return null;
                 }
 
-                // Update access metadata
-                entry.HitCount++;
+                // Update access metadata (thread-safe increment, eventual consistency for timestamp)
+                entry.IncrementHitCount();
                 entry.LastAccessedAt = DateTime.UtcNow;
                 Interlocked.Increment(ref _hitCount);
                 return entry;
@@ -171,6 +171,9 @@ namespace DBTools.Caching
             }
         }
 
+        // TODO: Replace with a LinkedList-based LRU for O(1) eviction at large cache sizes.
+        // The current implementation is O(n) due to the full LINQ scan, which is acceptable
+        // for small-to-moderate cache sizes but will degrade under high load.
         private void EvictOldest()
         {
             // Find the entry with the oldest LastAccessedAt (LRU)
