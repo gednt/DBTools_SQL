@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Support for Stored Procedures - Add the ability to execute stored procedures with input parameters, output parameters, and return values. Provide both sync and async APIs integrated with the existing SqlClient and AsyncSqlClient.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create DBTools/Abstractions/IStoredProcedureClient.cs with interfaces: IStoredProcedureClient (sync) with methods ExecuteStoredProcedure(string procedureName, StoredProcedureParameter[] parameters) returning StoredProcedureResult, and ExecuteStoredProcedureReader(string procedureName, StoredProcedureParameter[] parameters) returning DataTable. Also IAsyncStoredProcedureClient (async) with ExecuteStoredProcedureAsync and ExecuteStoredProcedureReaderAsync (with CancellationToken).",
     "Create DBTools/StoredProcedures/StoredProcedureParameter.cs with a class containing: Name (string), Value (object), Direction (ParameterDirection from System.Data - Input, Output, InputOutput, ReturnValue), DbType (System.Data.DbType, optional/nullable), Size (int?, optional for output params).",

@@ -1,6 +1,7 @@
 using DBTools.Abstractions;
 using DBTools.Core;
 using DBTools.Providers;
+using DBTools.StoredProcedures;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System;
@@ -72,6 +73,20 @@ namespace DBTools.Configuration
                 var provider = sp.GetRequiredService<IDbProvider>();
                 return new SqlClient(config, validator, queryBuilder, provider);
             });
+
+            // Register StoredProcedureClient as scoped (implements both sync and async interfaces)
+            services.AddScoped<StoredProcedureClient>(sp =>
+            {
+                var provider = sp.GetRequiredService<IDbProvider>();
+                var config = sp.GetRequiredService<IDbConfiguration>();
+                return new StoredProcedureClient(provider, config.ConnectionString);
+            });
+
+            services.AddScoped<IStoredProcedureClient>(sp =>
+                sp.GetRequiredService<StoredProcedureClient>());
+
+            services.AddScoped<IAsyncStoredProcedureClient>(sp =>
+                sp.GetRequiredService<StoredProcedureClient>());
 
             return services;
         }
