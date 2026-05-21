@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Query Result Caching - Implement an in-memory query result cache with configurable expiration, manual/automatic cache invalidation on write operations, and integration via the interceptor pipeline.",
+  "status": "pending",
+  "steps": [
+    "Create DBTools/Caching/IQueryCache.cs with interface: Get(string cacheKey) returning CacheEntry or null, Set(string cacheKey, object result, TimeSpan? expiration), Invalidate(string cacheKey), InvalidateByTable(string tableName), Clear(), GetStatistics() returning CacheStatistics.",
+    "Create DBTools/Caching/CacheEntry.cs with: Value (object), CreatedAt (DateTime), ExpiresAt (DateTime?), HitCount (int).",
+    "Create DBTools/Caching/CacheStatistics.cs with: TotalEntries (int), HitCount (long), MissCount (long), HitRate (double), EvictionCount (long).",
+    "Create DBTools/Caching/QueryCacheOptions.cs with: Enabled (bool, default false), DefaultExpiration (TimeSpan, default 5 minutes), MaxCacheSize (int, default 1000), EnableAutoInvalidation (bool, default true - automatically invalidates cache entries for a table when an Insert/Update/Delete hits that table).",
+    "Create DBTools/Caching/MemoryQueryCache.cs implementing IQueryCache: uses ConcurrentDictionary<string, CacheEntry> internally, handles expiration checks on Get, implements LRU eviction when MaxCacheSize is reached (track access time, evict oldest), thread-safe via ConcurrentDictionary.",
+    "Create DBTools/Caching/CacheKeyGenerator.cs with a static method GenerateKey(string sql, List<object> parameters) that creates a deterministic cache key from the SQL and parameters (using string concatenation + hash).",
+    "Create DBTools/Caching/CachingInterceptor.cs implementing both IQueryInterceptor and IAsyncQueryInterceptor: BeforeExecute checks cache for SELECT queries (generates key, checks IQueryCache.Get, if hit sets context.IsSuppressed = true and stores result in context.Properties['CachedResult']), AfterExecute stores results in cache for SELECT queries, and for Insert/Update/Delete calls InvalidateByTable if EnableAutoInvalidation is true.",
+    "Add QueryCacheOptions property to DbToolsOptions.cs: public QueryCacheOptions CacheOptions { get; set; } = new QueryCacheOptions(). Add ConfigureCaching(Action<QueryCacheOptions> configure) fluent method.",
+    "Register IQueryCache as singleton (MemoryQueryCache) and add CachingInterceptor in ServiceCollectionExtensions.AddDbTools() when CacheOptions.Enabled is true.",
+    "Modify AsyncSqlClient to check context.Properties for 'CachedResult' after interceptors suppress execution - if IsSuppressed and CachedResult exists, return the cached DataTable instead of an empty one.",
+    "Create DBToolsUnitTest/Caching/MemoryQueryCacheTests.cs testing: basic get/set, expiration, invalidation by key and table, max size eviction, statistics tracking.",
+    "Create DBToolsUnitTest/Caching/CacheKeyGeneratorTests.cs testing: same SQL+params produce same key, different SQL produces different key, null parameters handled.",
+    "Create DBToolsUnitTest/Caching/CachingInterceptorTests.cs testing: interceptor caches SELECT results, interceptor returns cached results on cache hit (sets IsSuppressed), interceptor invalidates on write operations."
+  ],
+  "acceptance_criteria": [
+    "MemoryQueryCache implements thread-safe in-memory caching with expiration and eviction",
+    "CachingInterceptor transparently caches SELECT results and invalidates on writes",
+    "Cache is integrated via the existing interceptor pipeline (no changes to query execution flow needed beyond the IsSuppressed/CachedResult pattern)",
+    "AsyncSqlClient respects cached results when IsSuppressed is true",
+    "Configuration via QueryCacheOptions and DI registration",
+    "Unit tests verify cache hit/miss, expiration, eviction, auto-invalidation, and key generation"
+  ],
+  "verification": [
+    "Verify MemoryQueryCache uses ConcurrentDictionary for thread safety",
+    "Verify CachingInterceptor integrates with existing IQueryInterceptor interface without modification",
+    "Verify AsyncSqlClient changes are minimal and backward-compatible",
+    "Verify tests are comprehensive and follow MSTest patterns"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

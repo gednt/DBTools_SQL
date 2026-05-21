@@ -1,4 +1,5 @@
 using DBTools.Abstractions;
+using DBTools.Pooling;
 using System;
 using System.Collections.Generic;
 
@@ -66,6 +67,11 @@ namespace DBTools.Configuration
         internal List<IAsyncQueryInterceptor> AsyncInterceptors { get; } = new List<IAsyncQueryInterceptor>();
 
         /// <summary>
+        /// Connection pool configuration options.
+        /// </summary>
+        public ConnectionPoolOptions PoolOptions { get; set; } = new ConnectionPoolOptions();
+
+        /// <summary>
         /// Registers a query interceptor.
         /// </summary>
         public DbToolsOptions AddInterceptor(IQueryInterceptor interceptor)
@@ -84,6 +90,20 @@ namespace DBTools.Configuration
         }
 
         /// <summary>
+        /// Configures connection pooling options using a fluent builder pattern.
+        /// </summary>
+        /// <param name="configure">Action to configure the pool options.</param>
+        /// <returns>The current DbToolsOptions instance for method chaining.</returns>
+        public DbToolsOptions ConfigurePooling(Action<ConnectionPoolOptions> configure)
+        {
+            if (configure == null)
+                throw new ArgumentNullException(nameof(configure));
+
+            configure(PoolOptions);
+            return this;
+        }
+
+        /// <summary>
         /// Builds a connection string from the configured properties.
         /// </summary>
         internal string BuildConnectionString()
@@ -91,7 +111,7 @@ namespace DBTools.Configuration
             if (!string.IsNullOrEmpty(ConnectionString))
                 return ConnectionString;
 
-            return Provider switch
+            var baseConnectionString = Provider switch
             {
                 DatabaseProvider.SqlServer => $"Data Source=tcp:{Host},{Port};Initial Catalog={Database};User ID={Username};Password={Password};TrustServerCertificate={TrustServerCertificate};",
                 DatabaseProvider.PostgreSQL => $"Host={Host};Port={Port};Database={Database};Username={Username};Password={Password};",
@@ -99,6 +119,20 @@ namespace DBTools.Configuration
                 DatabaseProvider.SQLite => $"Data Source={Database};",
                 _ => throw new InvalidOperationException($"Unknown database provider: {Provider}")
             };
+
+            if (PoolOptions != null)
+            {
+                baseConnectionString += Provider switch
+                {
+                    DatabaseProvider.SqlServer => $"Min Pool Size={PoolOptions.MinPoolSize};Max Pool Size={PoolOptions.MaxPoolSize};Connection Lifetime={PoolOptions.ConnectionLifetimeSeconds};Pooling={PoolOptions.Pooling};",
+                    DatabaseProvider.PostgreSQL => $"Minimum Pool Size={PoolOptions.MinPoolSize};Maximum Pool Size={PoolOptions.MaxPoolSize};Connection Idle Lifetime={PoolOptions.ConnectionIdleTimeoutSeconds};Pooling={PoolOptions.Pooling};",
+                    DatabaseProvider.MySQL => $"MinimumPoolSize={PoolOptions.MinPoolSize};MaximumPoolSize={PoolOptions.MaxPoolSize};ConnectionLifeTime={PoolOptions.ConnectionLifetimeSeconds};Pooling={PoolOptions.Pooling};",
+                    DatabaseProvider.SQLite => $"Pooling={PoolOptions.Pooling};",
+                    _ => string.Empty
+                };
+            }
+
+            return baseConnectionString;
         }
     }
 

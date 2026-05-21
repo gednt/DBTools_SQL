@@ -1,0 +1,7 @@
+{
+  "task_id": "task-future-enhancements",
+  "task_description": "Implement four future enhancements for the DBTools library: Connection pooling configuration, Support for stored procedures, Query result caching, and Migration tools. All implementations must use only standard .NET libraries already referenced in the project (no new NuGet packages).",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}

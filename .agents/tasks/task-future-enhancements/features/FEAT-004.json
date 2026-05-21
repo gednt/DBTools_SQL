@@ -1,0 +1,38 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Migration Tools - Implement a database schema migration system that supports creating migrations (up/down SQL scripts), applying migrations, rolling back migrations, and tracking migration history in a database table.",
+  "status": "pending",
+  "steps": [
+    "Create DBTools/Abstractions/IMigration.cs with interface: string MigrationId { get; } (timestamp-based, e.g., '20240101120000_CreateUsersTable'), string Description { get; }, string UpSql { get; }, string DownSql { get; }.",
+    "Create DBTools/Abstractions/IMigrationRunner.cs with interface: Task ApplyAsync(CancellationToken ct = default) - applies all pending migrations, Task RollbackAsync(string targetMigrationId = null, CancellationToken ct = default) - rolls back to target (or last one if null), Task<IReadOnlyList<MigrationRecord>> GetAppliedMigrationsAsync(CancellationToken ct = default), Task<IReadOnlyList<IMigration>> GetPendingMigrationsAsync(CancellationToken ct = default).",
+    "Create DBTools/Migrations/MigrationRecord.cs with: MigrationId (string), Description (string), AppliedAt (DateTime), Checksum (string - hash of UpSql to detect tampering).",
+    "Create DBTools/Migrations/MigrationBase.cs abstract class implementing IMigration: provides MigrationId/Description as abstract properties, UpSql/DownSql as abstract properties. Provides a static helper ParseTimestamp(string migrationId) to extract the datetime portion.",
+    "Create DBTools/Migrations/SqlMigration.cs - a concrete implementation that takes migrationId, description, upSql, downSql in constructor (for programmatic/inline migration creation).",
+    "Create DBTools/Migrations/MigrationRunner.cs implementing IMigrationRunner: takes IDbProvider, connectionString, and IEnumerable<IMigration> in constructor. Creates a '__DBToolsMigrations' tracking table if not exists (columns: MigrationId VARCHAR(255) PK, Description VARCHAR(500), AppliedAt DATETIME, Checksum VARCHAR(64)). ApplyAsync runs pending migrations in order within a transaction per migration. RollbackAsync runs DownSql in reverse order. Uses provider-appropriate SQL for table creation (different datetime types per provider).",
+    "Create DBTools/Migrations/MigrationOptions.cs with: MigrationTableName (string, default '__DBToolsMigrations'), IList<IMigration> Migrations (registered migrations list), AutoMigrateOnStartup (bool, default false).",
+    "Add MigrationOptions property to DbToolsOptions.cs: public MigrationOptions MigrationOptions { get; set; } = new MigrationOptions(). Add ConfigureMigrations(Action<MigrationOptions> configure) fluent method.",
+    "Register IMigrationRunner in ServiceCollectionExtensions.AddDbTools() as a scoped service using MigrationRunner, passing configured migrations.",
+    "Create DBTools/Migrations/MigrationBuilder.cs - a fluent builder to define migrations: AddMigration(string id, string description, string upSql, string downSql) returns MigrationBuilder (for use in options configuration).",
+    "Create DBToolsUnitTest/Migrations/SqlMigrationTests.cs testing migration construction and property access.",
+    "Create DBToolsUnitTest/Migrations/MigrationRunnerTests.cs testing: tracking table creation SQL generation, migration ordering, pending migration detection, checksum computation. These tests verify SQL generation logic without requiring a real database.",
+    "Create DBToolsUnitTest/Migrations/MigrationBuilderTests.cs testing fluent builder API."
+  ],
+  "acceptance_criteria": [
+    "IMigration and IMigrationRunner interfaces define the migration contract",
+    "MigrationRunner creates tracking table, applies migrations in order, supports rollback",
+    "Each migration runs in its own transaction for atomicity",
+    "Checksum stored to detect if migration SQL was modified after application",
+    "MigrationBuilder provides fluent API for defining migrations in configuration",
+    "DI registration integrates with existing AddDbTools pattern",
+    "Unit tests verify SQL generation, ordering, checksum logic, and builder API without requiring database connectivity"
+  ],
+  "verification": [
+    "Verify MigrationRunner generates valid SQL for tracking table creation per provider",
+    "Verify migration ordering uses MigrationId (timestamp-based sorting)",
+    "Verify tests follow MSTest patterns and TestBase inheritance",
+    "Verify DI registration follows existing patterns in ServiceCollectionExtensions"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

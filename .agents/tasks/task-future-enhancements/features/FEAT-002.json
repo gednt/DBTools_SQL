@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Support for Stored Procedures - Add the ability to execute stored procedures with input parameters, output parameters, and return values. Provide both sync and async APIs integrated with the existing SqlClient and AsyncSqlClient.",
+  "status": "pending",
+  "steps": [
+    "Create DBTools/Abstractions/IStoredProcedureClient.cs with interfaces: IStoredProcedureClient (sync) with methods ExecuteStoredProcedure(string procedureName, StoredProcedureParameter[] parameters) returning StoredProcedureResult, and ExecuteStoredProcedureReader(string procedureName, StoredProcedureParameter[] parameters) returning DataTable. Also IAsyncStoredProcedureClient (async) with ExecuteStoredProcedureAsync and ExecuteStoredProcedureReaderAsync (with CancellationToken).",
+    "Create DBTools/StoredProcedures/StoredProcedureParameter.cs with a class containing: Name (string), Value (object), Direction (ParameterDirection from System.Data - Input, Output, InputOutput, ReturnValue), DbType (System.Data.DbType, optional/nullable), Size (int?, optional for output params).",
+    "Create DBTools/StoredProcedures/StoredProcedureResult.cs with a class containing: ReturnValue (object), OutputParameters (Dictionary<string, object>), RowsAffected (int).",
+    "Create DBTools/StoredProcedures/StoredProcedureClient.cs implementing IStoredProcedureClient: takes IDbProvider, connectionString in constructor. ExecuteStoredProcedure creates a DbCommand with CommandType = CommandType.StoredProcedure, adds parameters respecting Direction, executes via ExecuteNonQuery, then reads back output/return values. ExecuteStoredProcedureReader does the same but uses ExecuteReader and loads into DataTable.",
+    "Create DBTools/StoredProcedures/AsyncStoredProcedureClient.cs implementing IAsyncStoredProcedureClient: async versions of the same operations using ExecuteNonQueryAsync and ExecuteReaderAsync.",
+    "Register IStoredProcedureClient and IAsyncStoredProcedureClient in ServiceCollectionExtensions.AddDbTools() as scoped services.",
+    "Create DBToolsUnitTest/StoredProcedures/StoredProcedureParameterTests.cs testing parameter construction with various directions.",
+    "Create DBToolsUnitTest/StoredProcedures/StoredProcedureResultTests.cs testing result object construction.",
+    "Create DBToolsUnitTest/StoredProcedures/StoredProcedureClientTests.cs testing that the client correctly configures DbCommand with CommandType.StoredProcedure, adds parameters with correct directions (using SqlServerProvider which creates real SqlCommand objects for inspection)."
+  ],
+  "acceptance_criteria": [
+    "StoredProcedureParameter supports Input, Output, InputOutput, and ReturnValue directions",
+    "StoredProcedureResult captures return value, output parameters, and rows affected",
+    "StoredProcedureClient and AsyncStoredProcedureClient are fully implemented",
+    "DI registration is added to ServiceCollectionExtensions",
+    "Unit tests verify parameter setup, command configuration (CommandType.StoredProcedure), and result object construction"
+  ],
+  "verification": [
+    "Verify interfaces follow existing pattern (XML docs, namespace consistency)",
+    "Verify implementations use IDbProvider.CreateConnection/CreateCommand pattern consistent with AsyncSqlClient",
+    "Verify DI registration follows existing scoped pattern",
+    "Verify tests use MSTest attributes and TestBase"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
