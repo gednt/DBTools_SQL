@@ -25,6 +25,10 @@ A robust .NET library for multi-provider database operations with built-in secur
   - [CRUD Operations](#linq-crud-operations)
   - [JOIN Support](#join-support)
   - [Deferred IQueryable Execution](#deferred-iqueryable-execution)
+- [Connection Pooling](#connection-pooling)
+- [Stored Procedures](#stored-procedures)
+- [Query Result Caching](#query-result-caching)
+- [Migration Tools](#migration-tools)
 - [Security](#security)
 - [API Reference](#api-reference)
 - [Examples](#examples)
@@ -49,6 +53,10 @@ A robust .NET library for multi-provider database operations with built-in secur
 - **Input Validation**: Comprehensive identifier validation via `SqlValidator`
 - **Dependency Injection**: Full DI support with `AddDbTools()` and provider auto-resolution
 - **Error Handling**: Robust error handling and validation throughout
+- **Connection Pooling Configuration**: Configurable pool size, connection lifetime, and idle timeout per provider
+- **Stored Procedures**: Execute stored procedures with input, output, input/output parameters, and return values (sync and async)
+- **Query Result Caching**: In-memory cache with configurable expiration, LRU eviction, table-based auto-invalidation, and statistics
+- **Migration Tools**: Schema migration system with apply/rollback, transaction-per-migration, checksum verification, and fluent builder
 
 ## Installation
 
@@ -232,6 +240,43 @@ public class UserService
 }
 ```
 
+#### Full-Featured DI Setup
+
+```csharp
+// Full-featured DI setup with all options
+services.AddDbTools(options =>
+{
+    options.Provider = DatabaseProvider.PostgreSQL;
+    options.Host = "localhost";
+    options.Port = "5432";
+    options.Database = "myappdb";
+    options.Username = "postgres";
+    options.Password = "secret";
+
+    // Connection pooling
+    options.ConfigurePooling(pool =>
+    {
+        pool.MinPoolSize = 5;
+        pool.MaxPoolSize = 50;
+    });
+
+    // Query caching
+    options.ConfigureCaching(cache =>
+    {
+        cache.Enabled = true;
+        cache.DefaultExpiration = TimeSpan.FromMinutes(10);
+    });
+
+    // Migrations
+    options.ConfigureMigrations(m =>
+    {
+        m.Migrations.Add(new CreateUsersTable());
+    });
+});
+```
+
+In addition to `SqlClient`, `IAsyncSqlClient`, and `AsyncSqlClient`, the following services are also injectable: `IStoredProcedureClient`, `IAsyncStoredProcedureClient`, `IQueryCache`, and `IMigrationRunner`.
+
 ## Architecture
 
 DBTools_SQL is organized into the following namespaces:
@@ -246,6 +291,10 @@ DBTools_SQL is organized into the following namespaces:
 | `DBTools.Models` | Data models: `GenericObject`, `GenericObject_Simple` |
 | `DBTools.Linq` | LINQ infrastructure: `DbQuery<T>`, `DbQueryProvider`, `DbExpressionTranslator`, `JoinQuery<TLeft,TRight>`, `JoinResult<TLeft,TRight>` |
 | `DBTools.Export` | Export utilities: `DataExport` |
+| `DBTools.Pooling` | Connection pool configuration: `ConnectionPoolOptions` |
+| `DBTools.StoredProcedures` | Stored procedure execution: `StoredProcedureClient`, `StoredProcedureParameter`, `StoredProcedureResult` |
+| `DBTools.Caching` | Query result caching: `MemoryQueryCache`, `CachingInterceptor`, `CacheKeyGenerator`, `QueryCacheOptions`, `CacheEntry`, `CacheStatistics` |
+| `DBTools.Migrations` | Database migrations: `MigrationRunner`, `MigrationBuilder`, `MigrationBase`, `MigrationOptions`, `MigrationRecord`, `SqlMigration` |
 
 ### Project Structure
 
@@ -260,7 +309,10 @@ DBTools/
 │   ├── ISqlValidator.cs        # Validator interface
 │   ├── IAsyncSqlClient.cs      # Async SQL client interface
 │   ├── IDbTransaction.cs       # Transaction interface
-│   └── IQueryInterceptor.cs    # Query interceptor interface
+│   ├── IQueryInterceptor.cs    # Query interceptor interface
+│   ├── IStoredProcedureClient.cs # Stored procedure interfaces (sync + async)
+│   ├── IMigration.cs            # Migration interface
+│   └── IMigrationRunner.cs      # Migration runner interface
 ├── Providers/
 │   ├── DbProviderFactory.cs    # Factory for creating IDbProvider instances
 │   ├── SqlServerProvider.cs    # SQL Server dialect (MERGE, SCOPE_IDENTITY, [brackets])
@@ -302,6 +354,28 @@ DBTools/
 │   ├── LoggingInterceptor.cs   # Query logging
 │   ├── AuditInterceptor.cs     # Audit trail
 │   └── SoftDeleteInterceptor.cs # Soft delete support
+├── Pooling/
+│   └── ConnectionPoolOptions.cs    # Pool size, lifetime, idle timeout settings
+├── StoredProcedures/
+│   ├── StoredProcedureClient.cs    # Sync and async stored procedure execution
+│   ├── StoredProcedureParameter.cs # Parameter with direction (Input/Output/InputOutput/ReturnValue)
+│   └── StoredProcedureResult.cs    # Result with return value, output params, rows affected
+├── Caching/
+│   ├── IQueryCache.cs              # Cache interface (Get/Set/Invalidate/Clear/Statistics)
+│   ├── MemoryQueryCache.cs         # ConcurrentDictionary-based LRU cache
+│   ├── CachingInterceptor.cs       # Transparent cache via interceptor pipeline
+│   ├── CacheKeyGenerator.cs        # SHA256-based deterministic cache keys
+│   ├── CacheEntry.cs               # Cache entry with metadata and hit count
+│   ├── CacheStatistics.cs          # Hit rate, miss count, eviction count
+│   └── QueryCacheOptions.cs        # Expiration, max size, auto-invalidation settings
+├── Migrations/
+│   ├── IMigrationRunner.cs         # Runner interface (Apply/Rollback/GetPending)
+│   ├── MigrationRunner.cs          # Provider-aware runner with per-migration transactions
+│   ├── MigrationBuilder.cs         # Fluent API for defining migrations
+│   ├── MigrationBase.cs            # Abstract base with SHA256 checksum
+│   ├── MigrationOptions.cs         # Table name, auto-migrate settings
+│   ├── MigrationRecord.cs          # Applied migration tracking record
+│   └── SqlMigration.cs             # Concrete migration with Up/Down SQL
 ├── Export/
 │   └── DataExport.cs           # CSV export and DataTable conversion
 ├── DBTools.csproj
@@ -954,6 +1028,456 @@ foreach (var user in results)
 }
 ```
 
+## Connection Pooling
+
+DBTools_SQL supports configurable connection pooling through provider-specific connection string parameters. Pool settings are translated to the appropriate format for each provider.
+
+### Configuration
+
+#### Via Dependency Injection
+
+```csharp
+services.AddDbTools(options =>
+{
+    options.Provider = DatabaseProvider.PostgreSQL;
+    options.Host = "localhost";
+    options.Database = "myappdb";
+    options.Username = "postgres";
+    options.Password = "secret";
+    options.Port = "5432";
+
+    // Configure connection pooling
+    options.ConfigurePooling(pool =>
+    {
+        pool.Pooling = true;
+        pool.MinPoolSize = 5;
+        pool.MaxPoolSize = 50;
+        pool.ConnectionLifetimeSeconds = 300;
+        pool.ConnectionIdleTimeoutSeconds = 120;
+    });
+});
+```
+
+#### Direct Configuration
+
+```csharp
+var options = new DbToolsOptions
+{
+    Provider = DatabaseProvider.SqlServer,
+    Host = "localhost",
+    Database = "MyDb",
+    Username = "sa",
+    Password = "secret"
+};
+
+options.PoolOptions = new ConnectionPoolOptions
+{
+    Pooling = true,
+    MinPoolSize = 0,
+    MaxPoolSize = 100,
+    ConnectionLifetimeSeconds = 0,     // Unlimited
+    ConnectionIdleTimeoutSeconds = 300  // 5 minutes
+};
+```
+
+### Pool Options
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `Pooling` | `true` | Enable/disable connection pooling |
+| `MinPoolSize` | `0` | Minimum connections maintained in the pool |
+| `MaxPoolSize` | `100` | Maximum connections allowed in the pool |
+| `ConnectionLifetimeSeconds` | `0` | Max lifetime before a connection is destroyed (0 = unlimited) |
+| `ConnectionIdleTimeoutSeconds` | `300` | Idle time before removal from pool (5 minutes) |
+
+### Provider-Specific Behavior
+
+Pool options are appended to the connection string using provider-appropriate parameter names:
+
+| Provider | Min Pool | Max Pool | Lifetime | Idle Timeout |
+|----------|----------|----------|----------|--------------|
+| SQL Server | `Min Pool Size` | `Max Pool Size` | `Connection Lifetime` | N/A |
+| PostgreSQL | `Minimum Pool Size` | `Maximum Pool Size` | N/A | `Connection Idle Lifetime` |
+| MySQL | `MinimumPoolSize` | `MaximumPoolSize` | `ConnectionLifeTime` | N/A |
+| SQLite | N/A | N/A | N/A | N/A (pooling on/off only) |
+
+### Disabling Pooling
+
+```csharp
+options.ConfigurePooling(pool =>
+{
+    pool.Pooling = false;
+});
+// Appends "Pooling=False;" to the connection string
+```
+
+---
+
+## Stored Procedures
+
+DBTools_SQL provides full stored procedure support with input, output, input/output parameters, and return values. Both synchronous and asynchronous interfaces are available.
+
+### Setup
+
+#### Via Dependency Injection
+
+```csharp
+// StoredProcedureClient is automatically registered when using AddDbTools()
+services.AddDbTools(options => { /* ... */ });
+
+// Inject via interface
+public class OrderService
+{
+    private readonly IAsyncStoredProcedureClient _spClient;
+
+    public OrderService(IAsyncStoredProcedureClient spClient)
+    {
+        _spClient = spClient;
+    }
+}
+```
+
+#### Manual Instantiation
+
+```csharp
+using DBTools.StoredProcedures;
+using DBTools.Providers;
+
+var provider = DbProviderFactory.Create(DatabaseProvider.SqlServer);
+var spClient = new StoredProcedureClient(provider, connectionString);
+```
+
+### Executing Stored Procedures
+
+#### Basic Execution (Non-Query)
+
+```csharp
+var parameters = new[]
+{
+    StoredProcedureParameter.Input("UserId", 42),
+    StoredProcedureParameter.Input("NewStatus", "active")
+};
+
+StoredProcedureResult result = spClient.ExecuteStoredProcedure("sp_UpdateUserStatus", parameters);
+Console.WriteLine($"Rows affected: {result.RowsAffected}");
+```
+
+#### With Output Parameters
+
+```csharp
+var parameters = new[]
+{
+    StoredProcedureParameter.Input("OrderId", 1001),
+    StoredProcedureParameter.Output("TotalAmount", DbType.Decimal, size: 18),
+    StoredProcedureParameter.Output("OrderStatus", DbType.String, size: 50)
+};
+
+StoredProcedureResult result = spClient.ExecuteStoredProcedure("sp_GetOrderDetails", parameters);
+
+decimal total = (decimal)result.OutputParameters["TotalAmount"];
+string status = (string)result.OutputParameters["OrderStatus"];
+```
+
+#### With Return Value
+
+```csharp
+var parameters = new[]
+{
+    StoredProcedureParameter.Input("Username", "john_doe"),
+    StoredProcedureParameter.Input("Password", "hashed_password"),
+    StoredProcedureParameter.ReturnValue()
+};
+
+StoredProcedureResult result = spClient.ExecuteStoredProcedure("sp_AuthenticateUser", parameters);
+int statusCode = (int)result.ReturnValue; // 0 = success, 1 = invalid credentials, etc.
+```
+
+#### With Input/Output Parameters
+
+```csharp
+var parameters = new[]
+{
+    StoredProcedureParameter.InputOutput("Counter", 10, DbType.Int32)
+};
+
+StoredProcedureResult result = spClient.ExecuteStoredProcedure("sp_IncrementCounter", parameters);
+int newValue = (int)result.OutputParameters["Counter"];
+```
+
+#### Returning Result Sets
+
+```csharp
+var parameters = new[]
+{
+    StoredProcedureParameter.Input("DepartmentId", 5),
+    StoredProcedureParameter.Input("MinSalary", 50000)
+};
+
+DataTable employees = spClient.ExecuteStoredProcedureReader("sp_GetEmployees", parameters);
+
+foreach (DataRow row in employees.Rows)
+{
+    Console.WriteLine($"{row["Name"]} - {row["Salary"]}");
+}
+```
+
+### Async Execution
+
+```csharp
+var parameters = new[]
+{
+    StoredProcedureParameter.Input("CategoryId", 3)
+};
+
+// Non-query
+StoredProcedureResult result = await spClient.ExecuteStoredProcedureAsync(
+    "sp_ArchiveCategory", parameters, cancellationToken);
+
+// With result set
+DataTable products = await spClient.ExecuteStoredProcedureReaderAsync(
+    "sp_GetProductsByCategory", parameters, cancellationToken);
+```
+
+### Parameter Factory Methods
+
+| Method | Direction | Description |
+|--------|-----------|-------------|
+| `StoredProcedureParameter.Input(name, value)` | Input | Standard input parameter |
+| `StoredProcedureParameter.Output(name, dbType, size?)` | Output | Output-only parameter |
+| `StoredProcedureParameter.InputOutput(name, value, dbType, size?)` | InputOutput | Bidirectional parameter |
+| `StoredProcedureParameter.ReturnValue()` | ReturnValue | Captures the procedure's return value |
+
+---
+
+## Query Result Caching
+
+DBTools_SQL includes a transparent query result caching layer that integrates with the interceptor pipeline. SELECT results are cached automatically, and write operations (INSERT/UPDATE/DELETE) invalidate related cache entries.
+
+### Configuration
+
+```csharp
+services.AddDbTools(options =>
+{
+    options.Provider = DatabaseProvider.SqlServer;
+    // ... connection settings ...
+
+    options.ConfigureCaching(cache =>
+    {
+        cache.Enabled = true;
+        cache.DefaultExpiration = TimeSpan.FromMinutes(10);
+        cache.MaxCacheSize = 500;
+        cache.EnableAutoInvalidation = true;
+    });
+});
+```
+
+### Cache Options
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `Enabled` | `false` | Enable/disable query caching |
+| `DefaultExpiration` | 5 minutes | Default TTL for cache entries |
+| `MaxCacheSize` | `1000` | Maximum entries before LRU eviction |
+| `EnableAutoInvalidation` | `true` | Invalidate table cache on write operations |
+
+### How It Works
+
+1. **SELECT queries**: The `CachingInterceptor` generates a SHA256-based cache key from the SQL + parameters. On cache hit, the query is suppressed and the cached result is returned.
+2. **Write operations**: When `EnableAutoInvalidation` is true, any INSERT/UPDATE/DELETE automatically invalidates all cached entries associated with the affected table.
+3. **LRU eviction**: When the cache reaches `MaxCacheSize`, the least recently accessed entry is evicted.
+
+### Manual Cache Control
+
+Inject `IQueryCache` for direct cache manipulation:
+
+```csharp
+public class ProductService
+{
+    private readonly IQueryCache _cache;
+
+    public ProductService(IQueryCache cache)
+    {
+        _cache = cache;
+    }
+
+    public void InvalidateProductCache()
+    {
+        _cache.InvalidateByTable("Products");
+    }
+
+    public void ClearAllCache()
+    {
+        _cache.Clear();
+    }
+
+    public void PrintCacheStats()
+    {
+        var stats = _cache.GetStatistics();
+        Console.WriteLine($"Entries: {stats.TotalEntries}");
+        Console.WriteLine($"Hit rate: {stats.HitRate:P1}");
+        Console.WriteLine($"Hits: {stats.HitCount}, Misses: {stats.MissCount}");
+        Console.WriteLine($"Evictions: {stats.EvictionCount}");
+    }
+}
+```
+
+### Cache Behavior Notes
+
+- Cache keys are deterministic (same SQL + parameters = same key) using SHA256
+- Caching only applies to queries routed through the interceptor pipeline (AsyncSqlClient)
+- Table association requires the interceptor context to include the table name
+- Thread-safe implementation using `ConcurrentDictionary` and `Interlocked` operations
+
+---
+
+## Migration Tools
+
+DBTools_SQL includes a database schema migration system that tracks applied migrations in a database table, supports transactional apply/rollback, and detects script tampering via SHA256 checksums.
+
+### Configuration
+
+```csharp
+services.AddDbTools(options =>
+{
+    options.Provider = DatabaseProvider.PostgreSQL;
+    // ... connection settings ...
+
+    options.ConfigureMigrations(migrations =>
+    {
+        migrations.MigrationTableName = "__DBToolsMigrations"; // default
+        migrations.AutoMigrateOnStartup = false;              // default
+
+        // Register migrations using the builder
+        var builder = new MigrationBuilder();
+        builder
+            .AddMigration(
+                id: "20240101120000_CreateUsersTable",
+                description: "Create the Users table",
+                upSql: @"CREATE TABLE Users (
+                    Id SERIAL PRIMARY KEY,
+                    Username VARCHAR(100) NOT NULL,
+                    Email VARCHAR(255) NOT NULL,
+                    CreatedAt TIMESTAMP DEFAULT NOW()
+                )",
+                downSql: "DROP TABLE Users")
+            .AddMigration(
+                id: "20240102120000_AddAgeColumn",
+                description: "Add Age column to Users",
+                upSql: "ALTER TABLE Users ADD COLUMN Age INT DEFAULT 0",
+                downSql: "ALTER TABLE Users DROP COLUMN Age");
+
+        migrations.Migrations = new List<IMigration>(builder.Build());
+    });
+});
+```
+
+### Migration Options
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `MigrationTableName` | `"__DBToolsMigrations"` | Table name for tracking applied migrations |
+| `AutoMigrateOnStartup` | `false` | Whether to auto-apply pending migrations on startup |
+| `Migrations` | `[]` | List of registered migration definitions |
+
+### Using the Migration Runner
+
+Inject `IMigrationRunner` to manage migrations programmatically:
+
+```csharp
+public class MigrationService
+{
+    private readonly IMigrationRunner _runner;
+
+    public MigrationService(IMigrationRunner runner)
+    {
+        _runner = runner;
+    }
+
+    public async Task MigrateAsync(CancellationToken ct = default)
+    {
+        // Apply all pending migrations
+        await _runner.ApplyAsync(ct);
+    }
+
+    public async Task RollbackLastAsync(CancellationToken ct = default)
+    {
+        // Roll back only the most recent migration
+        await _runner.RollbackAsync(targetMigrationId: null, ct);
+    }
+
+    public async Task RollbackToAsync(string migrationId, CancellationToken ct = default)
+    {
+        // Roll back all migrations at or after the specified ID
+        await _runner.RollbackAsync(migrationId, ct);
+    }
+
+    public async Task PrintStatusAsync(CancellationToken ct = default)
+    {
+        var applied = await _runner.GetAppliedMigrationsAsync(ct);
+        var pending = await _runner.GetPendingMigrationsAsync(ct);
+
+        Console.WriteLine($"Applied: {applied.Count}, Pending: {pending.Count}");
+
+        foreach (var m in applied)
+            Console.WriteLine($"  [APPLIED] {m.MigrationId} - {m.Description} (at {m.AppliedAt:u})");
+
+        foreach (var m in pending)
+            Console.WriteLine($"  [PENDING] {m.MigrationId} - {m.Description}");
+    }
+}
+```
+
+### Creating Custom Migrations
+
+You can also create migrations by implementing `MigrationBase`:
+
+```csharp
+public class CreateOrdersTable : MigrationBase
+{
+    public override string MigrationId => "20240201120000_CreateOrdersTable";
+    public override string Description => "Create the Orders table";
+
+    public override string UpSql => @"
+        CREATE TABLE Orders (
+            Id SERIAL PRIMARY KEY,
+            UserId INT NOT NULL REFERENCES Users(Id),
+            Total DECIMAL(10,2) NOT NULL,
+            Status VARCHAR(50) DEFAULT 'pending',
+            CreatedAt TIMESTAMP DEFAULT NOW()
+        )";
+
+    public override string DownSql => "DROP TABLE Orders";
+}
+```
+
+Then register it:
+```csharp
+options.ConfigureMigrations(m =>
+{
+    m.Migrations.Add(new CreateOrdersTable());
+});
+```
+
+### Migration Tracking Table
+
+The migration runner automatically creates a tracking table (default: `__DBToolsMigrations`) with provider-appropriate DDL:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `MigrationId` | VARCHAR(255) PK | Unique migration identifier |
+| `Description` | VARCHAR(500) | Human-readable description |
+| `AppliedAt` | DATETIME/TIMESTAMP | UTC time when applied |
+| `Checksum` | VARCHAR(64) | SHA256 hash of the UpSql script |
+
+### Safety Features
+
+- **Transaction-per-migration**: Each migration runs in its own transaction; on failure, only that migration is rolled back
+- **Checksum verification**: SHA256 hashes detect if a migration script was modified after being applied
+- **SQL injection protection**: The `MigrationTableName` is validated with a regex pattern `[a-zA-Z_][a-zA-Z0-9_]*`
+- **Provider-aware DDL**: CREATE TABLE and DML use the correct SQL dialect for each provider
+
+---
+
 ## Security
 
 ### SQL Injection Prevention
@@ -1208,6 +1732,20 @@ DBToolsUnitTest/
 │   └── DbQueryLinqTests.cs
 ├── Export/
 │   └── DataExportTests.cs
+├── Pooling/
+│   └── ConnectionPoolOptionsTests.cs
+├── StoredProcedures/
+│   └── StoredProcedureClientTests.cs
+│   └── StoredProcedureParameterTests.cs
+├── Caching/
+│   ├── MemoryQueryCacheTests.cs
+│   ├── CachingInterceptorTests.cs
+│   ├── CacheKeyGeneratorTests.cs
+│   └── QueryCacheOptionsTests.cs
+├── Migrations/
+│   ├── MigrationRunnerTests.cs
+│   ├── MigrationBuilderTests.cs
+│   └── MigrationBaseTests.cs
 ├── Integration/
 │   ├── EdgeCaseTests.cs
 │   └── WorkflowTests.cs
@@ -1275,13 +1813,10 @@ Completed enhancements:
 - [x] Async/await support (`AsyncSqlClient`)
 - [x] Transaction support (`DbTransaction`)
 - [x] Query interceptors (logging, audit, soft delete)
-
-Future enhancements being considered:
-
-- [ ] Connection pooling configuration
-- [ ] Support for stored procedures
-- [ ] Query result caching
-- [ ] Migration tools
+- [x] Connection pooling configuration
+- [x] Support for stored procedures
+- [x] Query result caching
+- [x] Migration tools
 
 ## License
 
