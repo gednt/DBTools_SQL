@@ -1,9 +1,11 @@
 using DBTools.Abstractions;
 using DBTools.Models;
+using DBTools.Providers;
 using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Linq;
 
 namespace DBTools.Core
@@ -37,6 +39,20 @@ namespace DBTools.Core
             Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _validator = validator ?? throw new ArgumentNullException(nameof(validator));
             _queryBuilder = queryBuilder ?? throw new ArgumentNullException(nameof(queryBuilder));
+
+            Host = Configuration.Host;
+            Database = Configuration.Database;
+            Uid = Configuration.Uid;
+            Password = Configuration.Password;
+            Port = Configuration.Port;
+        }
+
+        public SqlClient(IDbConfiguration configuration, ISqlValidator validator, ISqlQueryBuilder queryBuilder, IDbProvider provider)
+        {
+            Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+            _queryBuilder = queryBuilder ?? throw new ArgumentNullException(nameof(queryBuilder));
+            _provider = provider ?? throw new ArgumentNullException(nameof(provider));
 
             Host = Configuration.Host;
             Database = Configuration.Database;
@@ -262,7 +278,7 @@ namespace DBTools.Core
                 throw new ArgumentNullException(nameof(parameters), "Parameters array cannot be null. Use empty array for no parameters.");
 
             String query = "";
-            List<SqlParameter> sqlParams = new List<SqlParameter>();
+            List<DbParameter> sqlParams = new List<DbParameter>();
 
             for (int i = 0; i < parameters.Length; i++)
             {
@@ -296,7 +312,7 @@ namespace DBTools.Core
         public bool Insert(String[] _fields, String _table, object[] _values, string primary_key_name = null, bool auto_increment = true)
         {
 
-            List<SqlParameter> parameters = new List<SqlParameter>();
+            List<DbParameter> parameters = new List<DbParameter>();
             string fields = "", paramPlaceholders = "";
             for (int cont = 0; cont < _fields.Length; cont++)
             {
@@ -365,7 +381,7 @@ namespace DBTools.Core
             }
 
             String setClause = "";
-            List<SqlParameter> parameters = new List<SqlParameter>();
+            List<DbParameter> parameters = new List<DbParameter>();
 
             for (int cont = 0; cont < _fields.Length; cont++)
             {
@@ -427,7 +443,7 @@ namespace DBTools.Core
             }
 
             String setClause = "";
-            List<SqlParameter> parameters = new List<SqlParameter>();
+            List<DbParameter> parameters = new List<DbParameter>();
 
             for (int cont = 0; cont < _fields.Length; cont++)
             {
@@ -477,7 +493,7 @@ namespace DBTools.Core
             if (parameters == null)
                 throw new ArgumentNullException(nameof(parameters), "Parameters array cannot be null. Use empty array for no parameters.");
 
-            List<SqlParameter> sqlParams = new List<SqlParameter>();
+            List<DbParameter> sqlParams = new List<DbParameter>();
 
             for (int i = 0; i < parameters.Length; i++)
             {
@@ -514,7 +530,7 @@ namespace DBTools.Core
             if (parameters == null)
                 throw new ArgumentNullException(nameof(parameters), "Parameters array cannot be null. Use empty array for no parameters.");
 
-            List<SqlParameter> sqlParams = new List<SqlParameter>();
+            List<DbParameter> sqlParams = new List<DbParameter>();
 
             for (int i = 0; i < parameters.Length; i++)
             {
@@ -542,7 +558,7 @@ namespace DBTools.Core
             if (parameters == null)
                 throw new ArgumentNullException(nameof(parameters), "Parameters array cannot be null. Use empty array for no parameters.");
 
-            List<SqlParameter> sqlParams = new List<SqlParameter>();
+            List<DbParameter> sqlParams = new List<DbParameter>();
 
             for (int i = 0; i < parameters.Length; i++)
             {
@@ -604,7 +620,7 @@ namespace DBTools.Core
         }
 
         /// <summary> Generates a list of SQL parameters from an array of values </summary>
-        public static List<SqlParameter> GenerateSqlParameters(object[] values)
+        public static List<DbParameter> GenerateSqlParameters(object[] values)
         {
             var validator = new SqlValidator();
             var builder = new SqlQueryBuilder(validator);

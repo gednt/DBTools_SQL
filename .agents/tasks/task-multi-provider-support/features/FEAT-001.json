@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-001",
+  "type": "refactor",
+  "description": "Refactor the core DBTools base class and SqlClient to use System.Data.Common abstractions (DbConnection, DbCommand, DbParameter, DbDataAdapter) instead of hardcoded Microsoft.Data.SqlClient types. Also refactor ISqlQueryBuilder to use DbParameter instead of SqlParameter. This makes the entire core provider-agnostic while maintaining backward compatibility.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1: Refactor DBTools/Abstractions/ISqlQueryBuilder.cs - Change the GenerateSqlParameters method return type from List<SqlParameter> to List<DbParameter> (using System.Data.Common). Remove the 'using Microsoft.Data.SqlClient' import. This is a breaking change to the interface but necessary for multi-provider support.",
+    "Step 2: Refactor DBTools/Core/SqlQueryBuilder.cs - Update GenerateSqlParameters to return List<DbParameter> instead of List<SqlParameter>. Since SqlQueryBuilder should not be coupled to a specific provider, use a generic approach: accept an optional IDbProvider parameter or create DbParameter instances generically. The simplest approach is to keep SqlParameter usage here since SqlQueryBuilder is used alongside SqlClient which is SQL Server specific, but change the return type to List<DbParameter> (SqlParameter inherits from DbParameter). Remove 'using Microsoft.Data.SqlClient' if possible, or keep it since this builder is used with SqlClient.",
+    "Step 3: Refactor DBTools/Core/DBTools.cs (the base class) - Replace all Microsoft.Data.SqlClient types with System.Data.Common equivalents: SqlConnection -> DbConnection, SqlCommand -> DbCommand, SqlParameter -> DbParameter, SqlDataAdapter -> DbDataAdapter (or use DbCommand.ExecuteReader + DataTable.Load pattern). Add an IDbProvider property that defaults to SqlServerProvider. Change the SqlParameters property from List<SqlParameter> to List<DbParameter>. Update ConnectionString property to use the provider. Update RetrieveDataSql(), SqlExecuteQuery(), RetrieveObjectSql() to use _provider.CreateConnection() instead of 'new SqlConnection()'.",
+    "Step 4: Refactor DBTools/Core/SqlClient.cs - Update to use DbParameter instead of SqlParameter in Select(), Insert(), Update(), Delete() methods. The SqlParameters references should use the base class's now-generic DbParameter list. Update GenerateSqlParameters static method to use DbParameter. Add an IDbProvider parameter to the constructors (default to SqlServerProvider for backward compat). Pass the provider to the base class.",
+    "Step 5: Update DBTools/Bulk/BulkOperations.cs - The BulkInsertSqlServerAsync method directly uses SqlConnection and SqlBulkCopy which is SQL Server specific. Keep this as-is since SqlBulkCopy is a SQL Server-only feature. Ensure the provider check 'if (_provider is Providers.SqlServerProvider)' still works. The file already uses IDbProvider correctly for the generic path.",
+    "Step 6: Update the config.json to support a 'Provider' key that specifies which database provider to use (e.g., 'SqlServer', 'PostgreSQL', 'MySQL', 'SQLite'). Update DbConfiguration.cs to read this key and expose it. Add a 'Provider' property to IDbConfiguration.",
+    "Step 7: Add NuGet package references to DBTools.csproj for the other database providers: Microsoft.Data.Sqlite (version 8.0.0), MySqlConnector (version 2.3.0), Npgsql (version 8.0.0). These won't restore in this sandbox but are needed for consumers of the library.",
+    "Step 8: Update DBToolsUnitTest/TestBase.cs to use System.Data.Common.DbConnection or keep SqlConnection (since tests are SQL Server focused). If the base class SqlParameters type changed, update test references accordingly.",
+    "Step 9: Ensure all existing test files in DBToolsUnitTest/Core/ still compile after the refactoring. Fix any compilation issues caused by the SqlParameter -> DbParameter type change."
+  ],
+  "acceptance_criteria": [
+    "The solution compiles without errors with 'dotnet build DBTools.sln'",
+    "The base DBTools class uses IDbProvider to create connections instead of hardcoded SqlConnection",
+    "ISqlQueryBuilder.GenerateSqlParameters returns List<DbParameter> instead of List<SqlParameter>",
+    "SqlClient class works with DbParameter internally while maintaining its public API",
+    "config.json supports a 'Provider' key for selecting the database provider",
+    "DBTools.csproj contains PackageReference entries for Microsoft.Data.Sqlite, MySqlConnector, and Npgsql",
+    "All existing unit tests pass (those that don't require a live database connection)"
+  ],
+  "verification": [
+    "Run 'dotnet build DBTools.sln' and confirm zero errors",
+    "Run 'dotnet test DBToolsUnitTest/DBToolsUnitTest.csproj --no-build --filter \"TestCategory!=Integration\"' and confirm existing tests pass"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

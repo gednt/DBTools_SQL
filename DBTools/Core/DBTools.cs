@@ -1,8 +1,10 @@
+using DBTools.Abstractions;
 using DBTools.Models;
+using DBTools.Providers;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 namespace DBTools.Core
 {
@@ -29,8 +31,10 @@ namespace DBTools.Core
 
         private string _connectionString;
 
-        private List<SqlParameter> sqlParameters;
+        private List<DbParameter> sqlParameters;
         public int count;
+
+        protected IDbProvider _provider;
         #endregion
 
         #region public getters and setters
@@ -38,6 +42,7 @@ namespace DBTools.Core
         {
             //STANDARD TCP/IP Port
             port = "1433";
+            _provider = new SqlServerProvider();
         }
         /// <summary>
         /// It is used to place the server address of the database <br></br>
@@ -185,7 +190,7 @@ namespace DBTools.Core
 
         }
 
-        public List<SqlParameter> SqlParameters { get => sqlParameters; set => sqlParameters = value; }
+        public List<DbParameter> SqlParameters { get => sqlParameters; set => sqlParameters = value; }
         #endregion
 
         #region legacy getters and setters
@@ -248,14 +253,14 @@ namespace DBTools.Core
         [Obsolete("This method is deprecated and should use SqlExecuteQuery instead", false)]
         public void sqlExecuteQuery()
         {
-            using (SqlConnection SqlConnection = new SqlConnection(ConnectionString))
+            using (DbConnection connection = _provider.CreateConnection(ConnectionString))
             {
-                SqlConnection.Open();
+                connection.Open();
                 try
                 {
-                    SqlCommand SqlCommand = SqlConnection.CreateCommand();
-                    SqlCommand.CommandText = this.getQuery();
-                    SqlCommand.ExecuteNonQuery();
+                    DbCommand command = connection.CreateCommand();
+                    command.CommandText = this.getQuery();
+                    command.ExecuteNonQuery();
                 }
                 catch (Exception ex)
                 {
@@ -276,30 +281,26 @@ namespace DBTools.Core
             DataView defaultView = new DataView();
             try
             {
-
-                SqlCommand SqlCommand = new SqlCommand();
-                SqlConnection SqlConnection = new SqlConnection(ConnectionString);
-                //Verifica se a conexão foi aberta com sucesso
-                try
+                using (DbConnection connection = _provider.CreateConnection(ConnectionString))
                 {
-                    SqlConnection.Open();
-                    SqlCommand = SqlConnection.CreateCommand();
-                    SqlCommand.CommandText = this.getQuery();
-                    SqlDataAdapter SqlDataAdapter = new SqlDataAdapter(SqlCommand);
-                    DataSet dataSet = new DataSet();
-                    SqlDataAdapter.Fill(dataSet);
-                    this.Count = dataSet.Tables.Count;
-                    defaultView = dataSet.Tables[0].DefaultView;
-                    SqlConnection.Close();
+                    try
+                    {
+                        connection.Open();
+                        DbCommand command = connection.CreateCommand();
+                        command.CommandText = this.getQuery();
+                        DataTable dataTable = new DataTable();
+                        using (DbDataReader reader = command.ExecuteReader())
+                        {
+                            dataTable.Load(reader);
+                        }
+                        this.Count = 1;
+                        defaultView = dataTable.DefaultView;
+                    }
+                    catch (DbException e)
+                    {
+                        Error = e.ToString();
+                    }
                 }
-                catch (SqlException e)
-                {
-                    Error = e.ToString();
-
-                }
-
-
-
             }
             catch (Exception ex)
             {
@@ -316,24 +317,31 @@ namespace DBTools.Core
         /// <returns></returns>
         public List<GenericObject> RetrieveObjectSql()
         {
-            using (SqlConnection conn = new SqlConnection(this.ConnectionString))
+            using (DbConnection conn = _provider.CreateConnection(this.ConnectionString))
             {
-                SqlCommand command = new SqlCommand(this.Query, conn);
+                DbCommand command = conn.CreateCommand();
+                command.CommandText = this.Query;
                 if (SqlParameters != null)
-                    command.Parameters.AddRange(SqlParameters.ToArray());
-                SqlDataAdapter SqlDataAdapter = new SqlDataAdapter(command);
-                DataSet dataSet = new DataSet();
-                SqlDataAdapter.Fill(dataSet);
+                {
+                    foreach (var param in SqlParameters)
+                        command.Parameters.Add(param);
+                }
+                DataTable dataTable = new DataTable();
+                conn.Open();
+                using (DbDataReader reader = command.ExecuteReader())
+                {
+                    dataTable.Load(reader);
+                }
                 List<GenericObject> lstObject = new List<GenericObject>();
 
                 List<String> columns = new List<string>();
                 List<String> types = new List<string>();
-                DataView values = dataSet.Tables[0].DefaultView;
+                DataView values = dataTable.DefaultView;
                 int cont = 0;
                 foreach (var column in values.Table.Columns)
                 {
                     columns.Add(column.ToString());
-                    types.Add(dataSet.Tables[0].Columns[columns[cont]].DataType.Name);
+                    types.Add(dataTable.Columns[columns[cont]].DataType.Name);
                     cont++;
 
                 }
@@ -345,7 +353,6 @@ namespace DBTools.Core
                         columns = columns.ToArray(),
                         types = types.ToArray(),
                         values = values[cont].Row.ItemArray
-                        //  valuesString = values[cont].DataView
                     });
                 }
 
@@ -363,16 +370,19 @@ namespace DBTools.Core
         /// 
         public void SqlExecuteQuery(String query = "")
         {
-            using (SqlConnection SqlConnection = new SqlConnection(ConnectionString))
+            using (DbConnection connection = _provider.CreateConnection(ConnectionString))
             {
-                SqlConnection.Open();
+                connection.Open();
                 try
                 {
-                    SqlCommand SqlCommand = SqlConnection.CreateCommand();
-                    SqlCommand.CommandText = this.getQuery();
+                    DbCommand command = connection.CreateCommand();
+                    command.CommandText = this.getQuery();
                     if (sqlParameters != null)
-                        SqlCommand.Parameters.AddRange(SqlParameters.ToArray());
-                    SqlCommand.ExecuteNonQuery();
+                    {
+                        foreach (var param in SqlParameters)
+                            command.Parameters.Add(param);
+                    }
+                    command.ExecuteNonQuery();
                 }
                 catch (Exception ex)
                 {
@@ -394,20 +404,27 @@ namespace DBTools.Core
             try
             {
 
-                using (SqlConnection conn = new SqlConnection(this.ConnectionString))
+                using (DbConnection conn = _provider.CreateConnection(this.ConnectionString))
                 {
                     try
                     {
-                        SqlCommand SqlCommand = new SqlCommand(query != "" ? query : this.Query, conn);
+                        DbCommand command = conn.CreateCommand();
+                        command.CommandText = query != "" ? query : this.Query;
                         if (sqlParameters != null)
-                            SqlCommand.Parameters.AddRange(SqlParameters.ToArray());
-                        SqlDataAdapter SqlDataAdapter = new SqlDataAdapter(SqlCommand);
-                        DataSet dataSet = new DataSet();
-                        SqlDataAdapter.Fill(dataSet);
-                        this.Count = dataSet.Tables.Count;
-                        defaultView = dataSet.Tables[0].DefaultView;
+                        {
+                            foreach (var param in SqlParameters)
+                                command.Parameters.Add(param);
+                        }
+                        DataTable dataTable = new DataTable();
+                        conn.Open();
+                        using (DbDataReader reader = command.ExecuteReader())
+                        {
+                            dataTable.Load(reader);
+                        }
+                        this.Count = 1;
+                        defaultView = dataTable.DefaultView;
                     }
-                    catch (SqlException e)
+                    catch (DbException e)
                     {
                         Error = e.ToString();
 

@@ -5,6 +5,7 @@ using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -608,7 +609,7 @@ namespace DBTools.Controllers
                 .Where(p => p.CanRead && p.CanWrite)
                 .ToList();
 
-            var parameters = new List<SqlParameter>();
+            var parameters = new List<DbParameter>();
             int pIdx = 0;
 
             // SET clause values (all writable properties)

@@ -8,5 +8,6 @@ namespace DBTools.Abstractions
         string Password { get; }
         string Port { get; }
         string ConnectionString { get; }
+        string Provider { get; }
     }
 }

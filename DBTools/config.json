@@ -12,5 +12,6 @@
   "Uid": "testUser",
   "Database": "testDB",
   "Port": "1433",
-  "ServerType": "MSSQL"
+  "ServerType": "MSSQL",
+  "Provider": "SqlServer"
 }

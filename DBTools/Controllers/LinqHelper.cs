@@ -4,6 +4,7 @@ using DBTools.Models;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using Microsoft.Data.SqlClient;
 using System.Linq;
 using System.Linq.Expressions;
@@ -104,7 +105,7 @@ namespace DBTools.Controllers
         public bool InsertRange(IEnumerable<TModel> models)
         {
             var sqlStatements = new List<string>();
-            var sqlParameters = new List<List<SqlParameter>>();
+            var sqlParameters = new List<List<DbParameter>>();
 
             foreach (var model in models)
             {

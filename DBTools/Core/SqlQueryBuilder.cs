@@ -2,6 +2,7 @@ using DBTools.Abstractions;
 using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Linq;
 
 namespace DBTools.Core
@@ -162,9 +163,9 @@ namespace DBTools.Core
             return query;
         }
 
-        public List<SqlParameter> GenerateSqlParameters(object[] values)
+        public List<DbParameter> GenerateSqlParameters(object[] values)
         {
-            List<SqlParameter> sqlParams = new List<SqlParameter>();
+            List<DbParameter> sqlParams = new List<DbParameter>();
             for (int i = 0; i < values.Length; i++)
             {
                 string paramName = "@param" + i;

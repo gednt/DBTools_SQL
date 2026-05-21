@@ -111,6 +111,7 @@ namespace DBTools.Configuration
         public string Password { get; }
         public string Port { get; }
         public string ConnectionString { get; }
+        public string Provider { get; }
 
         public OptionsDbConfiguration(DbToolsOptions options)
         {
@@ -119,6 +120,7 @@ namespace DBTools.Configuration
             Uid = options.Username ?? "";
             Password = options.Password ?? "";
             Port = options.Port ?? "1433";
+            Provider = "SqlServer";
             ConnectionString = options.BuildConnectionString();
         }
     }

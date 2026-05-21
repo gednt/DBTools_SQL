@@ -3,6 +3,8 @@ using DBTools.Core;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
+using Microsoft.Data.SqlClient;
 
 namespace DBToolsUnitTest.Core
 {
@@ -95,9 +97,9 @@ namespace DBToolsUnitTest.Core
         public void SqlParameters_ShouldAcceptParameters()
         {
             var dbTools = new DBTools.Core.DBTools();
-            var parameters = new List<Microsoft.Data.SqlClient.SqlParameter>
+            var parameters = new List<DbParameter>
             {
-                new Microsoft.Data.SqlClient.SqlParameter("@param0", 1)
+                new SqlParameter("@param0", 1)
             };
             dbTools.SqlParameters = parameters;
             Assert.IsNotNull(dbTools.SqlParameters);

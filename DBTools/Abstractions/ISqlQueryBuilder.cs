@@ -1,5 +1,5 @@
-using Microsoft.Data.SqlClient;
 using System.Collections.Generic;
+using System.Data.Common;
 
 namespace DBTools.Abstractions
 {
@@ -9,6 +9,6 @@ namespace DBTools.Abstractions
         string InsertQuery(string[] fields, string table, object[] values, string primaryKeyName = "", bool autoIncrement = true);
         string UpdateQuery(string[] fields, string table, string[] values, string condition = "");
         string DeleteQuery(string table, string condition);
-        List<SqlParameter> GenerateSqlParameters(object[] values);
+        List<DbParameter> GenerateSqlParameters(object[] values);
     }
 }

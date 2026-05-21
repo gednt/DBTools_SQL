@@ -14,6 +14,7 @@ namespace DBTools.Core
         public string Password { get; }
         public string Port { get; }
         public string ConnectionString { get; }
+        public string Provider { get; }
 
         public DbConfiguration()
         {
@@ -39,6 +40,7 @@ namespace DBTools.Core
                 Uid = configuration["Uid"];
                 Password = configuration["Password"];
                 Port = configuration["Port"];
+                Provider = configuration["Provider"] ?? "SqlServer";
 
                 var missingKeys = new List<string>();
                 if (string.IsNullOrWhiteSpace(Host)) missingKeys.Add("Host");
@@ -71,6 +73,7 @@ namespace DBTools.Core
             Uid = configuration["Uid"];
             Password = configuration["Password"];
             Port = configuration["Port"];
+            Provider = configuration["Provider"] ?? "SqlServer";
 
             var missingKeys = new List<string>();
             if (string.IsNullOrWhiteSpace(Host)) missingKeys.Add("Host");
