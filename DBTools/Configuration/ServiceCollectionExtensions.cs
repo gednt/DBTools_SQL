@@ -89,14 +89,7 @@ namespace DBTools.Configuration
 
         private static IDbProvider CreateProvider(DatabaseProvider provider)
         {
-            return provider switch
-            {
-                DatabaseProvider.SqlServer => new SqlServerProvider(),
-                DatabaseProvider.PostgreSQL => new PostgresProvider(),
-                DatabaseProvider.MySQL => new MySqlProvider(),
-                DatabaseProvider.SQLite => new SqliteProvider(),
-                _ => throw new InvalidOperationException($"Unsupported database provider: {provider}")
-            };
+            return DbProviderFactory.Create(provider);
         }
     }
 
@@ -120,7 +113,7 @@ namespace DBTools.Configuration
             Uid = options.Username ?? "";
             Password = options.Password ?? "";
             Port = options.Port ?? "1433";
-            Provider = "SqlServer";
+            Provider = options.Provider.ToString();
             ConnectionString = options.BuildConnectionString();
         }
     }
