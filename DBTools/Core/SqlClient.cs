@@ -31,6 +31,7 @@ namespace DBTools.Core
             Uid = Configuration.Uid;
             Password = Configuration.Password;
             Port = Configuration.Port;
+            ConnectionString = Configuration.ConnectionString;
         }
 
         public SqlClient(IDbConfiguration configuration, ISqlValidator validator, ISqlQueryBuilder queryBuilder)
@@ -44,6 +45,7 @@ namespace DBTools.Core
             Uid = Configuration.Uid;
             Password = Configuration.Password;
             Port = Configuration.Port;
+            ConnectionString = Configuration.ConnectionString;
         }
 
         public SqlClient(IDbConfiguration configuration, ISqlValidator validator, ISqlQueryBuilder queryBuilder, IDbProvider provider)
@@ -58,6 +60,7 @@ namespace DBTools.Core
             Uid = Configuration.Uid;
             Password = Configuration.Password;
             Port = Configuration.Port;
+            ConnectionString = Configuration.ConnectionString;
         }
 
         #region Helper methods for validation
