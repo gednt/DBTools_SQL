@@ -31,6 +31,8 @@ services:
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "TestStrong!Passw0rd"
+    volumes:
+      - ./scripts/sqlserver-integration-setup.sql:/setup.sql:ro
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
@@ -41,5 +43,7 @@ services:
         "$$SQLCMD" -b -S sqlserver -U sa -P "TestStrong!Passw0rd" -C -Q "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'testDB') CREATE DATABASE testDB;"
         echo "Creating testUser login..."
         "$$SQLCMD" -b -S sqlserver -U sa -P "TestStrong!Passw0rd" -C -Q "IF NOT EXISTS (SELECT loginname FROM master.sys.syslogins WHERE loginname = N'testUser') CREATE LOGIN testUser WITH PASSWORD = 'Integration!123';"
-        "$$SQLCMD" -b -S sqlserver -U sa -P "TestStrong!Passw0rd" -C -Q "ALTER SERVER ROLE sysadmin ADD MEMBER testUser;"
+        "$$SQLCMD" -b -S sqlserver -U sa -P "TestStrong!Passw0rd" -C -Q "IF NOT EXISTS (SELECT 1 FROM sys.server_role_members rm JOIN sys.server_principals r ON rm.role_principal_id = r.principal_id JOIN sys.server_principals m ON rm.member_principal_id = m.principal_id WHERE r.name = N'sysadmin' AND m.name = N'testUser') ALTER SERVER ROLE sysadmin ADD MEMBER testUser;"
+        echo "Applying integration test schema..."
+        "$$SQLCMD" -b -S sqlserver -U sa -P "TestStrong!Passw0rd" -C -d testDB -i /setup.sql
         echo "Setup complete."

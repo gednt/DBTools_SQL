@@ -105,6 +105,7 @@ jobs:
             --no-build \
             --configuration Release \
             --verbosity normal \
+            --logger "console;verbosity=normal" \
             --filter "TestCategory=Integration"
 
       - name: Stop containers

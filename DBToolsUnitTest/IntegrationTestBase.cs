@@ -164,7 +164,11 @@ namespace DBToolsUnitTest
                 Console.WriteLine($"[IntegrationTestBase] Using docker-compose.yml at: {composeFile}");
 
                 // Try docker compose v2 first, then docker-compose v1
-                bool started = RunProcess("docker", $"compose -f \"{composeFile}\" up -d --wait", workingDir: composeDir, timeoutMs: 120000);
+                bool started = RunProcess("docker", $"compose -f \"{composeFile}\" up -d sqlserver --wait", workingDir: composeDir, timeoutMs: 120000);
+                if (started)
+                {
+                    started = RunProcess("docker", $"compose -f \"{composeFile}\" up sqlserver-setup --abort-on-container-exit --exit-code-from sqlserver-setup", workingDir: composeDir, timeoutMs: 120000);
+                }
                 if (!started)
                 {
                     started = RunProcess("docker-compose", $"-f \"{composeFile}\" up -d", workingDir: composeDir, timeoutMs: 120000);
@@ -217,6 +221,8 @@ namespace DBToolsUnitTest
                             END";
                         cmd.ExecuteNonQuery();
                     }
+
+                    ApplyIntegrationSchema(connection);
                 }
 
                 return true;
@@ -243,6 +249,40 @@ namespace DBToolsUnitTest
                 dir = Path.Combine(dir, "..");
             }
             return null;
+        }
+
+        private static string FindIntegrationSchemaScript()
+        {
+            string dir = Directory.GetCurrentDirectory();
+            for (int i = 0; i < 8; i++)
+            {
+                string candidate = Path.GetFullPath(Path.Combine(dir, "scripts", "sqlserver-integration-setup.sql"));
+                if (File.Exists(candidate))
+                    return candidate;
+                dir = Path.Combine(dir, "..");
+            }
+            return null;
+        }
+
+        private static void ApplyIntegrationSchema(SqlConnection saConnection)
+        {
+            string scriptPath = FindIntegrationSchemaScript();
+            if (scriptPath == null)
+            {
+                Console.WriteLine("[IntegrationTestBase] Integration schema script not found; skipping table seed.");
+                return;
+            }
+
+            string script = File.ReadAllText(scriptPath);
+            using (var cmd = saConnection.CreateCommand())
+            {
+                cmd.CommandText = "USE testDB;";
+                cmd.ExecuteNonQuery();
+                cmd.CommandText = script;
+                cmd.ExecuteNonQuery();
+            }
+
+            Console.WriteLine("[IntegrationTestBase] Applied integration test schema from " + scriptPath);
         }
 
         private static bool WaitForDatabase(int timeoutSeconds)
