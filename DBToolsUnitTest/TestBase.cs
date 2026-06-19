@@ -16,7 +16,7 @@ namespace DBToolsUnitTest
         protected const string TestHost = "127.0.0.1";
         protected const string TestDatabase = "testDB";
         protected const string TestUid = "testUser";
-        protected const string TestPassword = "123456";
+        protected const string TestPassword = "Integration!123";
         protected const string TestPort = "1433";
 
         protected static bool IsDatabaseAvailable()

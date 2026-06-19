@@ -79,22 +79,24 @@ jobs:
       - name: Build
         run: dotnet build DBTools.sln --no-restore --configuration Release
 
-      - name: Start SQL Server container
-        run: docker compose up -d --wait
+      - name: Start SQL Server and run setup
+        run: |
+          docker compose up -d sqlserver --wait
+          docker compose up sqlserver-setup --abort-on-container-exit --exit-code-from sqlserver-setup
 
       - name: Wait for SQL Server to be ready
         run: |
           echo "Waiting for SQL Server to accept connections..."
-          for i in $(seq 1 60); do
-            if /opt/mssql-tools18/bin/sqlcmd -S 127.0.0.1 -U testUser -P 123456 -C -Q "SELECT 1" > /dev/null 2>&1 || \
-               /opt/mssql-tools/bin/sqlcmd -S 127.0.0.1 -U testUser -P 123456 -Q "SELECT 1" > /dev/null 2>&1; then
+          for i in $(seq 1 30); do
+            if docker compose exec -T sqlserver bash -c "/opt/mssql-tools18/bin/sqlcmd -S localhost -U testUser -P 'Integration!123' -C -Q 'SELECT 1' 2>/dev/null || /opt/mssql-tools/bin/sqlcmd -S localhost -U testUser -P 'Integration!123' -Q 'SELECT 1' 2>/dev/null"; then
               echo "SQL Server is ready!"
               exit 0
             fi
-            echo "  Attempt $i/60: SQL Server not ready yet..."
+            echo "  Attempt $i/30: SQL Server not ready yet..."
             sleep 2
           done
           echo "SQL Server did not become ready in time."
+          docker compose logs
           exit 1
 
       - name: Run integration tests (only Integration category)
@@ -135,22 +137,24 @@ jobs:
       - name: Build
         run: dotnet build DBTools.sln --no-restore --configuration Release
 
-      - name: Start SQL Server container
-        run: docker compose up -d --wait
+      - name: Start SQL Server and run setup
+        run: |
+          docker compose up -d sqlserver --wait
+          docker compose up sqlserver-setup --abort-on-container-exit --exit-code-from sqlserver-setup
 
       - name: Wait for SQL Server to be ready
         run: |
           echo "Waiting for SQL Server to accept connections..."
-          for i in $(seq 1 60); do
-            if /opt/mssql-tools18/bin/sqlcmd -S 127.0.0.1 -U testUser -P 123456 -C -Q "SELECT 1" > /dev/null 2>&1 || \
-               /opt/mssql-tools/bin/sqlcmd -S 127.0.0.1 -U testUser -P 123456 -Q "SELECT 1" > /dev/null 2>&1; then
+          for i in $(seq 1 30); do
+            if docker compose exec -T sqlserver bash -c "/opt/mssql-tools18/bin/sqlcmd -S localhost -U testUser -P 'Integration!123' -C -Q 'SELECT 1' 2>/dev/null || /opt/mssql-tools/bin/sqlcmd -S localhost -U testUser -P 'Integration!123' -Q 'SELECT 1' 2>/dev/null"; then
               echo "SQL Server is ready!"
               exit 0
             fi
-            echo "  Attempt $i/60: SQL Server not ready yet..."
+            echo "  Attempt $i/30: SQL Server not ready yet..."
             sleep 2
           done
           echo "SQL Server did not become ready in time."
+          docker compose logs
           exit 1
 
       - name: Run all tests

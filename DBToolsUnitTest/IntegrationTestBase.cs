@@ -212,7 +212,7 @@ namespace DBToolsUnitTest
                                 CREATE DATABASE testDB;
                             IF NOT EXISTS (SELECT loginname FROM master.sys.syslogins WHERE loginname = 'testUser')
                             BEGIN
-                                CREATE LOGIN testUser WITH PASSWORD = '123456';
+                                CREATE LOGIN testUser WITH PASSWORD = 'Integration!123';
                                 ALTER SERVER ROLE sysadmin ADD MEMBER testUser;
                             END";
                         cmd.ExecuteNonQuery();
