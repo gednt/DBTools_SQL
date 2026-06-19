@@ -365,6 +365,10 @@ FodyWeavers.xsd
 # NuGet command line tool
 .nuget/
 
+# Local database configuration (use config.json.example as a template)
+**/config.json
+!**/config.json.example
+
 # Backup files from migration
 *.backup
 *.csproj.backup

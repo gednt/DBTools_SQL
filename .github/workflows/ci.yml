@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - dotnet-core
+      - main
+      - master
+  pull_request:
+    branches:
+      - dotnet-core
+      - main
+      - master
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Prepare configuration
+        run: |
+          cp DBTools/config.json.example DBTools/config.json
+          cp DBToolsUnitTest/config.json.example DBToolsUnitTest/config.json
+
+      - name: Restore
+        run: dotnet restore DBTools.sln
+
+      - name: Build
+        run: dotnet build DBTools.sln --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test DBTools.sln --no-build --configuration Release --verbosity normal

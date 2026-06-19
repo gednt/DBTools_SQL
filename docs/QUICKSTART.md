@@ -28,10 +28,17 @@ using System.Data;
 
 ### Step 2: Create Configuration File
 
-Create a `config.json` file in your application's root directory:
+Copy `config.json.example` to `config.json` and update the values:
+
+```bash
+cp config.json.example config.json
+```
+
+Example `config.json`:
 
 ```json
 {
+  "Provider": "SqlServer",
   "Host": "localhost\\SQLEXPRESS",
   "Database": "YourDatabaseName",
   "Uid": "your_username",

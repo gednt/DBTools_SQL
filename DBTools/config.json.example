@@ -1,0 +1,8 @@
+{
+  "Provider": "SqlServer",
+  "Host": "localhost\\SQLEXPRESS",
+  "Database": "YourDatabaseName",
+  "Uid": "YourUsername",
+  "Password": "YourPassword",
+  "Port": "1433"
+}
