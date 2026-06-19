@@ -62,9 +62,15 @@ git clone https://github.com/gednt/DBTools_SQL.git
    - In Visual Studio, right-click on your project → Add → Reference
    - Browse to the compiled `DBTools.dll`
 
-3. Add the configuration file to your project root (see [Configuration](#configuration))
+3. Copy `DBTools/config.json.example` to `config.json` in your project root and update the values (see [Configuration](#configuration))
 
 ## Configuration
+
+Copy the example configuration and customize it for your environment:
+
+```bash
+cp config.json.example config.json
+```
 
 Create a `config.json` file in your application's root directory:
 
@@ -153,7 +159,7 @@ The `Provider` key determines both the SQL dialect and the connection string for
 }
 ```
 
-**Note**: Ensure `config.json` is copied to the output directory. Set **Copy to Output Directory** to **Copy always** or **Copy if newer** in Visual Studio.
+**Note**: Do not commit `config.json` with real credentials. Use `config.json.example` as a template. Ensure `config.json` is copied to the output directory. Set **Copy to Output Directory** to **Copy always** or **Copy if newer** in Visual Studio.
 
 ## Quick Start
 
@@ -1180,6 +1186,17 @@ The project includes a comprehensive unit test project (`DBToolsUnitTest`). To r
 ```bash
 dotnet test
 ```
+
+### Local Setup
+
+Before running tests locally, create configuration files from the examples:
+
+```bash
+cp DBTools/config.json.example DBTools/config.json
+cp DBToolsUnitTest/config.json.example DBToolsUnitTest/config.json
+```
+
+CI uses the same steps automatically (see `.github/workflows/ci.yml`).
 
 ### Test Structure
 

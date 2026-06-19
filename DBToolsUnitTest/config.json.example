@@ -1,0 +1,8 @@
+{
+  "Provider": "SqlServer",
+  "Host": "127.0.0.1",
+  "Database": "testDB",
+  "Uid": "testUser",
+  "Password": "123456",
+  "Port": "1433"
+}
