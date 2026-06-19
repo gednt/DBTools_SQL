@@ -8,6 +8,7 @@ using System.Linq;
 namespace DBToolsUnitTest.Controllers
 {
     [TestClass]
+    [TestCategory("Integration")]
     public class LinqHelperTests : TestBase
     {
         private class TestUser

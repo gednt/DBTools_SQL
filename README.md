@@ -1111,6 +1111,7 @@ public static List<DbParameter> GenerateSqlParameters(object[] values)
 
 | Property | Type | Description |
 |----------|------|-------------|
+| `DbTools` | `ISqlClient` | Injected client for `Insert()` / `Update()` |
 | `columns` | `string[]` | Column names |
 | `values` | `object[]` | Column values |
 | `valuesString` | `string[]` | String representation of values |
@@ -1119,8 +1120,8 @@ public static List<DbParameter> GenerateSqlParameters(object[] values)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `Insert()` | `bool` | Insert using columns/values |
-| `Update(string conditions)` | `bool` | Update using columns/values |
+| `Insert()` | `bool` | Insert using columns/values (requires `DbTools`) |
+| `Update(string conditions)` | `bool` | Update using columns/values (requires `DbTools`) |
 
 ### DataExport Class
 
@@ -1226,7 +1227,42 @@ Contributions are welcome! Please follow these guidelines:
 
 ## Testing
 
-The project includes a comprehensive unit test project (`DBToolsUnitTest`). To run tests:
+The project includes a comprehensive unit test project (`DBToolsUnitTest`). Tests are organized into two categories:
+
+- **Unit tests** — no database required, run fast (< 2 min)
+- **Integration tests** (`[TestCategory("Integration")]`) — require a live SQL Server database
+
+### Running Unit Tests Only
+
+```bash
+dotnet test --filter "TestCategory!=Integration"
+```
+
+### Running Integration Tests
+
+Integration tests need a SQL Server database. There are three ways to run them:
+
+#### Option 1: Docker Compose (recommended for CI)
+
+```bash
+docker compose up -d --wait
+dotnet test --filter "TestCategory=Integration"
+docker compose down -v
+```
+
+#### Option 2: Testcontainers (automatic fallback)
+
+If Docker is available but `docker-compose.yml` is not found, the `IntegrationTestBase` class will automatically start a SQL Server container using [Testcontainers](https://dotnet.testcontainers.org/). No additional setup is required — just run:
+
+```bash
+dotnet test --filter "TestCategory=Integration"
+```
+
+#### Option 3: Existing SQL Server
+
+If you already have SQL Server running at `127.0.0.1:1433` with a `testDB` database and `testUser` login, the integration tests will use it directly.
+
+### Running All Tests
 
 ```bash
 dotnet test
@@ -1249,31 +1285,33 @@ CI uses the same steps automatically (see `.github/workflows/ci.yml`).
 DBToolsUnitTest/
 ├── Controllers/
 │   ├── DBToolsControllerTests.cs
-│   ├── LinqHelperTests.cs
-│   ├── LinqHelperLinqTests.cs
-│   └── LinqTests.cs
+│   ├── LinqHelperTests.cs        [TestCategory("Integration")]
+│   ├── LinqHelperLinqTests.cs    [TestCategory("Integration")]
+│   └── LinqTests.cs              [TestCategory("Integration")]
 ├── Core/
+│   ├── BugRegressionTests.cs     [TestCategory("Integration")]
 │   ├── DBToolsTests.cs
-│   ├── ObsoleteMethodTests.cs
+│   ├── ObsoleteMethodTests.cs     [TestCategory("Integration")]
 │   ├── QueryBuilderTests.cs
 │   ├── SqlClientConnectionTests.cs
-│   ├── SqlClientParameterizedQueryTests.cs
+│   ├── SqlClientParameterizedQueryTests.cs [TestCategory("Integration")]
 │   ├── SqlClientQueryBuilderTests.cs
 │   └── SqlClientValidationTests.cs
 ├── Providers/
-│   ├── ProviderTests.cs         # SQL dialect tests (quoting, paging, upsert, identity)
-│   └── DbProviderFactoryTests.cs # Factory resolution tests
+│   ├── ProviderDialectTests.cs    # SQL dialect tests (quoting, paging, upsert, identity)
+│   └── DbProviderFactoryTests.cs  # Factory resolution tests
 ├── Models/
 │   ├── GenericObjectTests.cs
 │   └── GenericObjectSimpleTests.cs
 ├── Linq/
-│   └── DbQueryLinqTests.cs
+│   └── DbQueryLinqTests.cs       [TestCategory("Integration")]
 ├── Export/
 │   └── DataExportTests.cs
 ├── Integration/
 │   ├── EdgeCaseTests.cs
 │   └── WorkflowTests.cs
-└── TestBase.cs
+├── TestBase.cs                    # Base class with shared constants & helpers
+└── IntegrationTestBase.cs         # Base class with Docker/Testcontainers orchestration
 ```
 
 ## Troubleshooting
@@ -1344,6 +1382,7 @@ Future enhancements being considered:
 - [ ] Support for stored procedures
 - [ ] Query result caching
 - [ ] Migration tools
+- [x] Testcontainers-based integration tests for multi-provider CI
 
 ## License
 

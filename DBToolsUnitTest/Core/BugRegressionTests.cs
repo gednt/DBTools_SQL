@@ -14,6 +14,7 @@ namespace DBToolsUnitTest.Core
     /// Tests are grouped by bug number and cover both offline (unit) and online (integration) scenarios.
     /// </summary>
     [TestClass]
+    [TestCategory("Integration")]
     public class BugRegressionTests : TestBase
     {
         private class TestUser

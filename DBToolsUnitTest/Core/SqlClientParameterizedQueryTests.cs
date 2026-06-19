@@ -5,6 +5,7 @@ using System;
 namespace DBToolsUnitTest.Core
 {
     [TestClass]
+    [TestCategory("Integration")]
     public class SqlClientParameterizedQueryTests : TestBase
     {
         [TestMethod]
