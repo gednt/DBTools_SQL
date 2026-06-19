@@ -371,6 +371,10 @@ namespace DBTools.Linq
                 var memberExp = (MemberExpression)expression;
                 if (memberExp.Expression != null && memberExp.Expression.NodeType == ExpressionType.Parameter)
                     return $"{_tableAlias}.{memberExp.Member.Name}";
+
+                var joinColumn = TryTranslateJoinMember(memberExp);
+                if (joinColumn != null)
+                    return joinColumn;
             }
 
             if (expression.NodeType == ExpressionType.Convert)
