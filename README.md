@@ -52,7 +52,58 @@ A robust .NET library for multi-provider database operations with built-in secur
 
 ## Installation
 
+### Via NuGet (recommended)
+
+The library is published as the `DBTools` NuGet package. Consumers can install it from a configured feed (NuGet.org or a private feed).
+
+Add the package to your .NET project:
+
+```bash
+dotnet add package DBTools
+```
+
+Or edit your `.csproj` directly:
+
+```xml
+<PackageReference Include="DBTools" Version="1.4.0" />
+```
+
+#### Optional provider packages
+
+DBTools ships with first-class support for **SQL Server, PostgreSQL, MySQL, and SQLite**. Only the SQL Server provider is referenced as a hard dependency. To use the other providers, add the corresponding optional package to your project:
+
+| Provider  | Optional NuGet package        | Notes |
+|-----------|-------------------------------|-------|
+| SQL Server | (bundled) `Microsoft.Data.SqlClient` | Default provider; no extra package needed |
+| PostgreSQL | `Npgsql`                      | Install if `Provider: PostgreSQL` in `config.json` |
+| MySQL      | `MySqlConnector`              | Install if `Provider: MySQL` in `config.json` |
+| SQLite     | `Microsoft.Data.Sqlite`       | Install if `Provider: SQLite` in `config.json` |
+
+Example for a project that talks to PostgreSQL:
+
+```bash
+dotnet add package DBTools
+dotnet add package Npgsql
+```
+
+> The optional provider packages are not pulled in transitively. You must reference them directly in the consuming application so each project only pays for the providers it actually uses.
+
+#### Building the package locally
+
+To produce a `.nupkg` from source:
+
+```bash
+dotnet pack DBTools/DBTools.csproj -c Release -o ./artifacts
+```
+
+The output `DBTools.1.4.0.nupkg` can be:
+
+- Pushed to a private feed (`dotnet nuget push ./artifacts/DBTools.1.4.0.nupkg --source <feed>`)
+- Pushed to NuGet.org (requires an API key configured via `dotnet nuget push` or the `NUGET_API_KEY` secret in the release workflow)
+- Installed as a local feed (`dotnet add package DBTools --source ./artifacts`)
+
 ### Via Source
+
 1. Clone the repository:
 ```bash
 git clone https://github.com/gednt/DBTools_SQL.git
@@ -1138,13 +1189,7 @@ The core library includes:
 
 ### Additional Provider Packages
 
-For databases other than SQL Server, add the corresponding NuGet package to your project:
-
-| Provider | Package to Install | Version |
-|----------|-------------------|---------|
-| PostgreSQL | [Npgsql](https://www.nuget.org/packages/Npgsql) | 8.0+ |
-| MySQL | [MySqlConnector](https://www.nuget.org/packages/MySqlConnector) | 2.3+ |
-| SQLite | [Microsoft.Data.Sqlite](https://www.nuget.org/packages/Microsoft.Data.Sqlite) | 8.0+ |
+DBTools bundles the SQL Server provider. PostgreSQL, MySQL, and SQLite support is loaded via reflection, so the corresponding provider package must be added to the **consuming application**, not transitively through DBTools. See the [optional provider packages](#optional-provider-packages) table in the Installation section for the exact package names and `dotnet add` commands.
 
 ```bash
 # Example: adding PostgreSQL support

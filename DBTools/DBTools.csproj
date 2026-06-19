@@ -8,6 +8,28 @@
     <Nullable>disable</Nullable>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <Deterministic>false</Deterministic>
+
+    <IsPackable>true</IsPackable>
+    <IsToolPackage>false</IsToolPackage>
+    <PackageId>DBTools</PackageId>
+    <Version>1.4.0</Version>
+    <AssemblyVersion>1.4.0.0</AssemblyVersion>
+    <FileVersion>1.4.0.0</FileVersion>
+    <PackageVersion>1.4.0</PackageVersion>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Authors>DMF Software</Authors>
+    <Company>DMF Software</Company>
+    <Copyright>Copyright (c) DMF Software 2016-2026</Copyright>
+    <Description>A multi-provider .NET database access library (SQL Server, PostgreSQL, MySQL, SQLite) with parameterized queries, LINQ expression support, CRUD utilities, JOINs, upsert, and built-in security features.</Description>
+    <PackageDescription>A multi-provider .NET database access library (SQL Server, PostgreSQL, MySQL, SQLite) with parameterized queries, LINQ expression support, CRUD utilities, JOINs, upsert, and built-in security features.</PackageDescription>
+    <PackageTags>sql-server;postgresql;mysql;sqlite;database;orm;crud;linq;query-builder;multi-provider;dbtools;dapper;ado.net</PackageTags>
+    <RepositoryUrl>https://github.com/gednt/DBTools_SQL</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/gednt/DBTools_SQL</PackageProjectUrl>
+    <PackageReleaseNotes>https://github.com/gednt/DBTools_SQL/releases</PackageReleaseNotes>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <IncludeSymbols>false</IncludeSymbols>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,6 +55,10 @@
     <None Update="config.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Link="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>
