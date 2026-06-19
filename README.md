@@ -52,15 +52,27 @@ A robust .NET library for multi-provider database operations with built-in secur
 
 ## Installation
 
-### Via NuGet (recommended)
+### Via GitHub Packages (recommended)
 
-The library is published as the `DBTools` NuGet package. Consumers can install it from a configured feed (NuGet.org or a private feed).
+Releases are published to [GitHub Packages](https://github.com/gednt/DBTools_SQL/packages) on every `v*` tag push.
 
-Add the package to your .NET project:
+**1. Authenticate** (one-time per machine; use a [PAT](https://github.com/settings/tokens) with `read:packages`):
 
 ```bash
-dotnet add package DBTools
+dotnet nuget add source "https://nuget.pkg.github.com/gednt/index.json" \
+  --name github \
+  --username YOUR_GITHUB_USERNAME \
+  --password YOUR_GITHUB_PAT \
+  --store-password-in-clear-text
 ```
+
+**2. Install** the package:
+
+```bash
+dotnet add package DBTools --version 1.4.0 --source github
+```
+
+Or copy `nuget.config.github-packages.example` to your solution as `nuget.config` and add credentials as described in that file.
 
 Or edit your `.csproj` directly:
 
@@ -98,8 +110,7 @@ dotnet pack DBTools/DBTools.csproj -c Release -o ./artifacts
 
 The output `DBTools.1.4.0.nupkg` can be:
 
-- Pushed to a private feed (`dotnet nuget push ./artifacts/DBTools.1.4.0.nupkg --source <feed>`)
-- Pushed to NuGet.org (requires an API key configured via `dotnet nuget push` or the `NUGET_API_KEY` secret in the release workflow)
+- Published via the Release workflow to GitHub Packages (automatic on `v*` tags)
 - Installed as a local feed (`dotnet add package DBTools --source ./artifacts`)
 
 ### Via Source

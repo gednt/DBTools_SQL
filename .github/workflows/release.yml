@@ -46,7 +46,7 @@ jobs:
       - name: Pack
         run: |
           mkdir -p artifacts
-          dotnet pack DBTools/DBTools.csproj -c Release -o ./artifacts --no-build --include-symbols
+          dotnet pack DBTools/DBTools.csproj -c Release -o ./artifacts --no-build
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -55,11 +55,13 @@ jobs:
           path: artifacts/*.nupkg
           if-no-files-found: error
 
-  publish-nuget:
-    name: Publish to NuGet.org
+  publish-github-packages:
+    name: Publish to GitHub Packages
     needs: build-test-pack
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) }}
     permissions:
       contents: read
       packages: write
@@ -73,27 +75,17 @@ jobs:
 
       - name: Publish to GitHub Packages
         run: |
-          dotnet nuget push artifacts/*.nupkg \
-            --api-key "${{ secrets.GITHUB_TOKEN }}" \
-            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
-            --skip-duplicate
-
-      - name: Publish to NuGet.org
-        if: ${{ secrets.NUGET_API_KEY != '' }}
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        run: |
-          dotnet nuget push artifacts/*.nupkg \
-            --api-key "$NUGET_API_KEY" \
-            --source https://api.nuget.org/v3/index.json \
-            --skip-duplicate
-
-      - name: Publish skipped (no NUGET_API_KEY)
-        if: ${{ secrets.NUGET_API_KEY == '' }}
-        run: |
-          echo "NUGET_API_KEY secret is not configured; skipping NuGet.org publish."
-          echo "GitHub Packages publish completed above. To also publish to nuget.org:"
-          echo "  ./scripts/configure-nuget-deploy.sh"
+          shopt -s nullglob
+          for pkg in artifacts/*.nupkg; do
+            case "$pkg" in
+              *.symbols.nupkg) continue ;;
+            esac
+            echo "Publishing $pkg ..."
+            dotnet nuget push "$pkg" \
+              --api-key "${{ secrets.GITHUB_TOKEN }}" \
+              --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+              --skip-duplicate
+          done
 
   github-release:
     name: Create GitHub release
