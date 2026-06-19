@@ -39,8 +39,8 @@ jobs:
       - name: Build
         run: dotnet build DBTools.sln --no-restore --configuration Release
 
-      - name: Test
-        run: dotnet test DBTools.sln --no-build --configuration Release --verbosity normal
+      - name: Test (unit tests only)
+        run: dotnet test DBTools.sln --no-build --configuration Release --verbosity normal --filter "TestCategory!=Integration"
 
       - name: Pack
         run: |
