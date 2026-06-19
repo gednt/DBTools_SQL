@@ -52,7 +52,58 @@ A robust .NET library for multi-provider database operations with built-in secur
 
 ## Installation
 
+### Via NuGet (recommended)
+
+The library is published as the `DBTools` NuGet package. Consumers can install it from a configured feed (NuGet.org or a private feed).
+
+Add the package to your .NET project:
+
+```bash
+dotnet add package DBTools
+```
+
+Or edit your `.csproj` directly:
+
+```xml
+<PackageReference Include="DBTools" Version="1.4.0" />
+```
+
+#### Optional provider packages
+
+DBTools ships with first-class support for **SQL Server, PostgreSQL, MySQL, and SQLite**. Only the SQL Server provider is referenced as a hard dependency. To use the other providers, add the corresponding optional package to your project:
+
+| Provider  | Optional NuGet package        | Notes |
+|-----------|-------------------------------|-------|
+| SQL Server | (bundled) `Microsoft.Data.SqlClient` | Default provider; no extra package needed |
+| PostgreSQL | `Npgsql`                      | Install if `Provider: PostgreSQL` in `config.json` |
+| MySQL      | `MySqlConnector`              | Install if `Provider: MySQL` in `config.json` |
+| SQLite     | `Microsoft.Data.Sqlite`       | Install if `Provider: SQLite` in `config.json` |
+
+Example for a project that talks to PostgreSQL:
+
+```bash
+dotnet add package DBTools
+dotnet add package Npgsql
+```
+
+> The optional provider packages are not pulled in transitively. You must reference them directly in the consuming application so each project only pays for the providers it actually uses.
+
+#### Building the package locally
+
+To produce a `.nupkg` from source:
+
+```bash
+dotnet pack DBTools/DBTools.csproj -c Release -o ./artifacts
+```
+
+The output `DBTools.1.4.0.nupkg` can be:
+
+- Pushed to a private feed (`dotnet nuget push ./artifacts/DBTools.1.4.0.nupkg --source <feed>`)
+- Pushed to NuGet.org (requires an API key configured via `dotnet nuget push` or the `NUGET_API_KEY` secret in the release workflow)
+- Installed as a local feed (`dotnet add package DBTools --source ./artifacts`)
+
 ### Via Source
+
 1. Clone the repository:
 ```bash
 git clone https://github.com/gednt/DBTools_SQL.git
@@ -1060,6 +1111,7 @@ public static List<DbParameter> GenerateSqlParameters(object[] values)
 
 | Property | Type | Description |
 |----------|------|-------------|
+| `DbTools` | `ISqlClient` | Injected client for `Insert()` / `Update()` |
 | `columns` | `string[]` | Column names |
 | `values` | `object[]` | Column values |
 | `valuesString` | `string[]` | String representation of values |
@@ -1068,8 +1120,8 @@ public static List<DbParameter> GenerateSqlParameters(object[] values)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `Insert()` | `bool` | Insert using columns/values |
-| `Update(string conditions)` | `bool` | Update using columns/values |
+| `Insert()` | `bool` | Insert using columns/values (requires `DbTools`) |
+| `Update(string conditions)` | `bool` | Update using columns/values (requires `DbTools`) |
 
 ### DataExport Class
 
@@ -1138,13 +1190,7 @@ The core library includes:
 
 ### Additional Provider Packages
 
-For databases other than SQL Server, add the corresponding NuGet package to your project:
-
-| Provider | Package to Install | Version |
-|----------|-------------------|---------|
-| PostgreSQL | [Npgsql](https://www.nuget.org/packages/Npgsql) | 8.0+ |
-| MySQL | [MySqlConnector](https://www.nuget.org/packages/MySqlConnector) | 2.3+ |
-| SQLite | [Microsoft.Data.Sqlite](https://www.nuget.org/packages/Microsoft.Data.Sqlite) | 8.0+ |
+DBTools bundles the SQL Server provider. PostgreSQL, MySQL, and SQLite support is loaded via reflection, so the corresponding provider package must be added to the **consuming application**, not transitively through DBTools. See the [optional provider packages](#optional-provider-packages) table in the Installation section for the exact package names and `dotnet add` commands.
 
 ```bash
 # Example: adding PostgreSQL support
@@ -1181,7 +1227,48 @@ Contributions are welcome! Please follow these guidelines:
 
 ## Testing
 
-The project includes a comprehensive unit test project (`DBToolsUnitTest`). To run tests:
+The project includes a comprehensive unit test project (`DBToolsUnitTest`). Tests are organized into two categories:
+
+- **Unit tests** — no database required, run fast (< 2 min)
+- **Integration tests** (`[TestCategory("Integration")]`) — require a live SQL Server database
+
+### Running Unit Tests Only
+
+```bash
+dotnet test --filter "TestCategory!=Integration"
+```
+
+### Reproducible builds
+
+`DBTools.csproj` sets `<Deterministic>true</Deterministic>` and pins `AssemblyVersion` in `Properties/AssemblyInfo.cs` (no `*` wildcards). Repeated Release builds of `DBTools.dll` produce byte-identical output on the same machine.
+
+**Known exception:** `.nupkg` files may still differ at the zip metadata layer (entry timestamps, NuGet core-properties GUIDs) even when the embedded assembly is identical. This is a [known NuGet pack limitation](https://github.com/NuGet/Home/issues/6229). CI verifies assembly determinism; release builds also set `ContinuousIntegrationBuild=true`.
+
+### Running Integration Tests
+
+Integration tests need a SQL Server database. There are three ways to run them:
+
+#### Option 1: Docker Compose (recommended for CI)
+
+```bash
+docker compose up -d --wait
+dotnet test --filter "TestCategory=Integration"
+docker compose down -v
+```
+
+#### Option 2: Testcontainers (automatic fallback)
+
+If Docker is available but `docker-compose.yml` is not found, the `IntegrationTestBase` class will automatically start a SQL Server container using [Testcontainers](https://dotnet.testcontainers.org/). No additional setup is required — just run:
+
+```bash
+dotnet test --filter "TestCategory=Integration"
+```
+
+#### Option 3: Existing SQL Server
+
+If you already have SQL Server running at `127.0.0.1:1433` with a `testDB` database and `testUser` login, the integration tests will use it directly.
+
+### Running All Tests
 
 ```bash
 dotnet test
@@ -1204,31 +1291,33 @@ CI uses the same steps automatically (see `.github/workflows/ci.yml`).
 DBToolsUnitTest/
 ├── Controllers/
 │   ├── DBToolsControllerTests.cs
-│   ├── LinqHelperTests.cs
-│   ├── LinqHelperLinqTests.cs
-│   └── LinqTests.cs
+│   ├── LinqHelperTests.cs        [TestCategory("Integration")]
+│   ├── LinqHelperLinqTests.cs    [TestCategory("Integration")]
+│   └── LinqTests.cs              [TestCategory("Integration")]
 ├── Core/
+│   ├── BugRegressionTests.cs     [TestCategory("Integration")]
 │   ├── DBToolsTests.cs
-│   ├── ObsoleteMethodTests.cs
+│   ├── ObsoleteMethodTests.cs     [TestCategory("Integration")]
 │   ├── QueryBuilderTests.cs
 │   ├── SqlClientConnectionTests.cs
-│   ├── SqlClientParameterizedQueryTests.cs
+│   ├── SqlClientParameterizedQueryTests.cs [TestCategory("Integration")]
 │   ├── SqlClientQueryBuilderTests.cs
 │   └── SqlClientValidationTests.cs
 ├── Providers/
-│   ├── ProviderTests.cs         # SQL dialect tests (quoting, paging, upsert, identity)
-│   └── DbProviderFactoryTests.cs # Factory resolution tests
+│   ├── ProviderDialectTests.cs    # SQL dialect tests (quoting, paging, upsert, identity)
+│   └── DbProviderFactoryTests.cs  # Factory resolution tests
 ├── Models/
 │   ├── GenericObjectTests.cs
 │   └── GenericObjectSimpleTests.cs
 ├── Linq/
-│   └── DbQueryLinqTests.cs
+│   └── DbQueryLinqTests.cs       [TestCategory("Integration")]
 ├── Export/
 │   └── DataExportTests.cs
 ├── Integration/
 │   ├── EdgeCaseTests.cs
 │   └── WorkflowTests.cs
-└── TestBase.cs
+├── TestBase.cs                    # Base class with shared constants & helpers
+└── IntegrationTestBase.cs         # Base class with Docker/Testcontainers orchestration
 ```
 
 ## Troubleshooting
@@ -1299,6 +1388,7 @@ Future enhancements being considered:
 - [ ] Support for stored procedures
 - [ ] Query result caching
 - [ ] Migration tools
+- [x] Testcontainers-based integration tests for multi-provider CI
 
 ## License
 

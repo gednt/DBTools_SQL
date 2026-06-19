@@ -3,6 +3,6 @@
   "Host": "127.0.0.1",
   "Database": "testDB",
   "Uid": "testUser",
-  "Password": "123456",
+  "Password": "Integration!123",
   "Port": "1433"
 }

@@ -764,14 +764,15 @@ Container for database operation data.
 ### Constructors
 
 ```csharp
-new GenericObject()                          // Without database operations
-new GenericObject(SqlClient dbTools)         // With database operations (uses configured provider)
+new GenericObject()                          // Data-only; Insert/Update require a client
+new GenericObject(ISqlClient dbTools)      // Bound to an injected client (DI-friendly)
 ```
 
 ### Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
+| `DbTools` | ISqlClient | Client used by `Insert()` / `Update()`; may be set after construction |
 | `columns` | string[] | Column names |
 | `values` | object[] | Column values |
 | `valuesString` | string[] | String representation of values |
@@ -781,9 +782,11 @@ new GenericObject(SqlClient dbTools)         // With database operations (uses c
 ### Methods
 
 ```csharp
-public bool Insert()                    // Insert using columns/valuesString/table
-public bool Update(string conditions)    // Update using columns/valuesString/table
+public bool Insert()                    // Insert using columns/valuesString/table (requires DbTools)
+public bool Update(string conditions)    // Update using columns/valuesString/table (requires DbTools)
 ```
+
+`Insert()` and `Update()` throw `InvalidOperationException` when no `ISqlClient` has been supplied via the constructor or `DbTools` property.
 
 ---
 

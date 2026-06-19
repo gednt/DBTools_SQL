@@ -10,21 +10,20 @@ namespace DBToolsUnitTest
     /// <summary>
     /// Base class for all DBTools unit tests.
     /// Provides shared constants, test data generators, and utility methods.
-    /// Follows DIP: tests depend on this abstraction rather than duplicating setup.
     /// </summary>
     public abstract class TestBase
     {
         protected const string TestHost = "127.0.0.1";
         protected const string TestDatabase = "testDB";
         protected const string TestUid = "testUser";
-        protected const string TestPassword = "123456";
+        protected const string TestPassword = "Integration!123";
         protected const string TestPort = "1433";
 
         protected static bool IsDatabaseAvailable()
         {
             try
             {
-                string connectionString = $"Data Source=tcp:{TestHost},{TestPort};Initial Catalog={TestDatabase};User ID={TestUid};Password={TestPassword};Connection Timeout=2;";
+                string connectionString = $"Data Source=tcp:{TestHost},{TestPort};Initial Catalog={TestDatabase};User ID={TestUid};Password={TestPassword};Connection Timeout=2;TrustServerCertificate=True;";
                 using (var connection = new SqlConnection(connectionString))
                 {
                     connection.Open();

@@ -5,6 +5,7 @@ using System;
 namespace DBToolsUnitTest.Core
 {
     [TestClass]
+    [TestCategory("Integration")]
     public class ObsoleteMethodTests : TestBase
     {
         [TestMethod]
