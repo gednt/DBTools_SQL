@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ dotnet-core, main, master, develop ]
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [ dotnet-core, main, master, develop ]
 
 permissions:
   contents: read
@@ -34,6 +34,17 @@ jobs:
 
       - name: Build
         run: dotnet build DBTools.sln --no-restore --configuration Release
+
+      - name: Verify deterministic build output (#30)
+        run: |
+          set -euo pipefail
+          dotnet build DBTools/DBTools.csproj -c Release --no-incremental
+          cp DBTools/bin/Release/net8.0/DBTools.dll /tmp/dbtools-build1.dll
+          dotnet build DBTools/DBTools.csproj -c Release --no-incremental
+          cp DBTools/bin/Release/net8.0/DBTools.dll /tmp/dbtools-build2.dll
+          sha256sum /tmp/dbtools-build1.dll /tmp/dbtools-build2.dll
+          cmp -s /tmp/dbtools-build1.dll /tmp/dbtools-build2.dll
+          echo "Deterministic build verified: DBTools.dll is byte-identical across rebuilds"
 
       - name: Run unit tests (exclude Integration category)
         run: |

@@ -1238,6 +1238,12 @@ The project includes a comprehensive unit test project (`DBToolsUnitTest`). Test
 dotnet test --filter "TestCategory!=Integration"
 ```
 
+### Reproducible builds
+
+`DBTools.csproj` sets `<Deterministic>true</Deterministic>` and pins `AssemblyVersion` in `Properties/AssemblyInfo.cs` (no `*` wildcards). Repeated Release builds of `DBTools.dll` produce byte-identical output on the same machine.
+
+**Known exception:** `.nupkg` files may still differ at the zip metadata layer (entry timestamps, NuGet core-properties GUIDs) even when the embedded assembly is identical. This is a [known NuGet pack limitation](https://github.com/NuGet/Home/issues/6229). CI verifies assembly determinism; release builds also set `ContinuousIntegrationBuild=true`.
+
 ### Running Integration Tests
 
 Integration tests need a SQL Server database. There are three ways to run them:

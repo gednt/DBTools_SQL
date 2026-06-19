@@ -37,7 +37,7 @@ jobs:
         run: dotnet restore DBTools.sln
 
       - name: Build
-        run: dotnet build DBTools.sln --no-restore --configuration Release
+        run: dotnet build DBTools.sln --no-restore --configuration Release -p:ContinuousIntegrationBuild=true
 
       - name: Test (unit tests only)
         run: dotnet test DBTools.sln --no-build --configuration Release --verbosity normal --filter "TestCategory!=Integration"
