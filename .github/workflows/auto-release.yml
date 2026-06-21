@@ -1,7 +1,8 @@
 name: Auto Release Tag
 
-# Creates a semver tag from DBTools.csproj Version when merged to dotnet-core,
-# which triggers the Release workflow (build, pack, NuGet.org + GitHub Packages).
+# Creates a semver tag from DBTools.csproj Version when merged to dotnet-core.
+# Note: tag pushes created with GITHUB_TOKEN do not trigger other workflows (GitHub limitation).
+# The Release workflow also runs on dotnet-core pushes and via workflow_run after this job completes.
 
 on:
   push:

@@ -4,10 +4,19 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - dotnet-core
+    paths:
+      - 'DBTools/DBTools.csproj'
+      - 'DBTools/Properties/AssemblyInfo.cs'
+  workflow_run:
+    workflows: [Auto Release Tag]
+    types: [completed]
+    branches: [dotnet-core]
   workflow_dispatch:
     inputs:
       version:
-        description: 'Package version to publish (e.g. 1.4.0). Leave blank to use the tag name.'
+        description: 'Package version to publish (e.g. 1.4.1). Leave blank to use DBTools.csproj Version.'
         required: false
         default: ''
 
@@ -18,11 +27,20 @@ permissions:
 jobs:
   build-test-pack:
     name: Build, test, and pack
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: >-
+            ${{
+              github.event_name == 'workflow_run' && github.event.workflow_run.head_sha ||
+              github.ref
+            }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -60,8 +78,10 @@ jobs:
     needs: build-test-pack
     runs-on: ubuntu-latest
     if: >-
-      ${{ github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) }}
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/dotnet-core') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     permissions:
       contents: read
       packages: write
@@ -92,8 +112,10 @@ jobs:
     needs: build-test-pack
     runs-on: ubuntu-latest
     if: >-
-      ${{ github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) }}
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/dotnet-core') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     permissions:
       contents: read
 
@@ -129,11 +151,34 @@ jobs:
     name: Create GitHub release
     needs: build-test-pack
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/dotnet-core') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: >-
+            ${{
+              github.event_name == 'workflow_run' && github.event.workflow_run.head_sha ||
+              github.ref
+            }}
+
+      - name: Resolve release tag
+        id: release_tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "name=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            VERSION=$(sed -n 's/.*<Version>\([^<]*\)<\/Version>.*/\1/p' DBTools/DBTools.csproj | head -1)
+            echo "name=v${VERSION}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -143,5 +188,6 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.release_tag.outputs.name }}
           generate_release_notes: true
           files: artifacts/*.nupkg

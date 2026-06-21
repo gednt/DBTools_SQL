@@ -29,9 +29,9 @@ There is no `Dockerfile`, `vercel.json`, `fly.toml`, or other application hostin
 
 Releases are triggered in three ways:
 
-1. **Automatic tag on merge** — When `DBTools/DBTools.csproj` or `AssemblyInfo.cs` is updated on the `dotnet-core` branch, the **Auto Release Tag** workflow (`.github/workflows/auto-release.yml`) reads `<Version>`, creates `v{version}` if it does not exist, and pushes the tag. That tag push triggers the Release workflow.
-2. **Manual tag push** — Push a semver tag matching `v*` (for example `v1.4.1`). The Release workflow builds, packs, publishes to NuGet.org and GitHub Packages, and creates a GitHub Release with the `.nupkg` attached.
-3. **Manual dispatch** — Run the **Release** workflow from the GitHub Actions UI (`workflow_dispatch`). Optionally specify a package version; otherwise the tag name is used when triggered by a tag push.
+1. **Automatic on merge** — Merging a version bump into `dotnet-core` runs the **Release** workflow directly (branch push on `DBTools.csproj` / `AssemblyInfo.cs`). The **Auto Release Tag** workflow also creates the `v{version}` git tag for GitHub Releases.
+2. **Tag push** — Pushing a semver tag matching `v*` (for example `v1.4.1`) also triggers Release. Tags pushed by GitHub Actions using `GITHUB_TOKEN` do **not** re-trigger workflows; use manual tags or rely on the branch push trigger above.
+3. **Manual dispatch** — Run the **Release** workflow from the GitHub Actions UI (`workflow_dispatch`) to publish an existing version (for example if `v1.4.1` was tagged but Release did not run).
 
 Before merging a version bump, update `DBTools/DBTools.csproj` (`<Version>`, `<PackageVersion>`, `<AssemblyVersion>`, `<FileVersion>`) and `DBTools/Properties/AssemblyInfo.cs` so the packed artifact matches the tag.
 
