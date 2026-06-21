@@ -4,7 +4,7 @@
 
 ## System overview
 
-DBTools_SQL is a .NET 8 class library that provides multi-provider database access for SQL Server, PostgreSQL, MySQL, and SQLite. The library is organized as a layered architecture: configuration and dependency injection at the top, a provider-agnostic core built on `System.Data.Common` abstractions in the middle, and dialect-specific provider implementations at the bottom. Application code can interact through three primary surfaces—low-level CRUD via `SqlClient`/`AsyncSqlClient`, type-safe entity helpers via `LinqHelper<T>` and `Linq<T>`, or an EF-like unit-of-work pattern via `DbContext`—all sharing the same validation, query building, and provider resolution infrastructure.
+DBTools_SQL is a .NET 8 class library that provides multi-provider database access for SQL Server, PostgreSQL, MySQL, and SQLite. The library is organized as a layered architecture: configuration and dependency injection at the top, a provider-agnostic core built on `System.Data.Common` abstractions in the middle, and dialect-specific provider implementations at the bottom. Application code can interact through four primary surfaces—low-level CRUD via `SqlClient`/`AsyncSqlClient`, type-safe entity helpers via `LinqHelper<T>` and `Linq<T>`, async typed CRUD via `AsyncLinqHelper<T>`, or an EF-like unit-of-work pattern via `DbContext`—all sharing the same validation, query building, and provider resolution infrastructure.
 
 Inputs are JSON configuration (`DBTools/config.json`, copied from `config.json.example`, or `DbToolsOptions`), connection strings, and strongly typed C# models or raw SQL fragments. Outputs are `DataView`/`DataTable` results, mapped entity collections, CSV exports, and boolean success indicators from mutation operations. Security is enforced centrally through parameterized queries and identifier validation before any SQL reaches the database.
 
@@ -16,6 +16,7 @@ graph TD
         SC[SqlClient]
         ASC[AsyncSqlClient]
         LH[LinqHelper / Linq]
+        ALH[AsyncLinqHelper]
         DC[DbContext]
         DI[AddDbTools DI]
     end
@@ -150,7 +151,7 @@ DBTools_SQL/
 
 - **Abstractions before implementations** — All public clients depend on interfaces (`ISqlClient`, `IDbProvider`, etc.), enabling mock-based unit tests and provider swapping without changing application code.
 - **Providers isolated from core** — Dialect differences (bracket vs. backtick quoting, MERGE vs. ON CONFLICT upsert, identity retrieval) are encapsulated in four small classes under `Providers/`. Optional provider NuGet packages (Npgsql, MySqlConnector, Microsoft.Data.Sqlite) are loaded by the consuming application, not bundled transitively.
-- **Controllers as convenience layer** — `LinqHelper<T>` and `Linq<T>` wrap `SqlClient` with reflection-based mapping and expression parsing. They sit above Core rather than inside it, so callers who only need raw CRUD are not forced to adopt LINQ.
+- **Controllers as convenience layer** — `LinqHelper<T>`, `Linq<T>`, and `AsyncLinqHelper<T>` wrap `SqlClient`/`AsyncSqlClient` with reflection-based mapping and expression parsing. They sit above Core rather than inside it, so callers who only need raw CRUD are not forced to adopt LINQ.
 - **Linq as optional query engine** — `DbQueryProvider` and `DbExpressionTranslator` implement deferred `IQueryable` execution separately from the synchronous helper classes, keeping the expression-tree translation concern isolated.
 - **Context for tracked workflows** — `DbContext`/`ChangeTracker` provide an opt-in EF-like pattern for applications that need change tracking and `SaveChanges`, without requiring the full Entity Framework dependency.
 - **Interceptors at the async boundary** — Cross-cutting concerns hook into `AsyncSqlClient` execution, keeping the synchronous `SqlClient` path lightweight for legacy consumers.

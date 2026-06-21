@@ -17,7 +17,8 @@ How DBTools_SQL is built, published, and consumed. This repository ships a **.NE
 
 | Target | Config / workflow | Purpose |
 |--------|-------------------|---------|
-| **GitHub Packages (NuGet)** | `.github/workflows/release.yml`, `nuget.config.github-packages.example` | Primary distribution channel for the `DBTools` package |
+| **NuGet.org** | `.github/workflows/release.yml` (job `publish-nuget-org`) | Primary public distribution for `dotnet add package DBTools` |
+| **GitHub Packages (NuGet)** | `.github/workflows/release.yml`, `nuget.config.github-packages.example` | Alternate feed for GitHub-authenticated consumers |
 | **GitHub Releases** | `.github/workflows/release.yml` (job `github-release`) | Attaches `.nupkg` files to version tags for download |
 | **Local NuGet feed** | `dotnet pack` (see [README.md](../README.md#from-source)) | Developer or offline consumption from a local folder |
 | **Docker Compose** | `docker-compose.yml` | **Integration testing only** — SQL Server 2022 container for CI and local integration tests, not runtime deployment |
@@ -26,18 +27,27 @@ There is no `Dockerfile`, `vercel.json`, `fly.toml`, or other application hostin
 
 ### Publishing a release (maintainers)
 
-Releases are triggered in two ways:
+Releases are triggered in three ways:
 
-1. **Tag push** — Push a semver tag matching `v*` (for example `v1.4.0`). The Release workflow builds, packs, publishes to GitHub Packages, and creates a GitHub Release with the `.nupkg` attached.
-2. **Manual dispatch** — Run the **Release** workflow from the GitHub Actions UI (`workflow_dispatch`). Optionally specify a package version; otherwise the tag name is used when triggered by a tag push.
+1. **Automatic tag on merge** — When `DBTools/DBTools.csproj` or `AssemblyInfo.cs` is updated on the `dotnet-core` branch, the **Auto Release Tag** workflow (`.github/workflows/auto-release.yml`) reads `<Version>`, creates `v{version}` if it does not exist, and pushes the tag. That tag push triggers the Release workflow.
+2. **Manual tag push** — Push a semver tag matching `v*` (for example `v1.4.1`). The Release workflow builds, packs, publishes to NuGet.org and GitHub Packages, and creates a GitHub Release with the `.nupkg` attached.
+3. **Manual dispatch** — Run the **Release** workflow from the GitHub Actions UI (`workflow_dispatch`). Optionally specify a package version; otherwise the tag name is used when triggered by a tag push.
 
-Before tagging, update the version in `DBTools/DBTools.csproj` (`<Version>`, `<PackageVersion>`, `<AssemblyVersion>`, `<FileVersion>`) so the packed artifact matches the tag.
+Before merging a version bump, update `DBTools/DBTools.csproj` (`<Version>`, `<PackageVersion>`, `<AssemblyVersion>`, `<FileVersion>`) and `DBTools/Properties/AssemblyInfo.cs` so the packed artifact matches the tag.
+
+**Required secret for NuGet.org:** Add `NUGET_API_KEY` in the repository secrets ([nuget.org account API keys](https://www.nuget.org/account/apikeys)). Without it, the Release workflow skips NuGet.org publish but still publishes to GitHub Packages.
 
 ### Consuming the package (downstream applications)
 
-Install from GitHub Packages as documented in [README.md](../README.md#from-github-packages-recommended). Copy `nuget.config.github-packages.example` to your solution and authenticate with a GitHub PAT (`read:packages` scope).
+Install from NuGet.org (recommended):
 
-Package source URL: `https://nuget.pkg.github.com/gednt/index.json` (see `nuget.config.github-packages.example`).
+```bash
+dotnet add package DBTools --version 1.4.1
+```
+
+Or from GitHub Packages as documented in [README.md](../README.md#from-github-packages). Copy `nuget.config.github-packages.example` to your solution and authenticate with a GitHub PAT (`read:packages` scope).
+
+Package source URL (GitHub): `https://nuget.pkg.github.com/gednt/index.json` (see `nuget.config.github-packages.example`).
 
 ---
 
@@ -71,16 +81,14 @@ All jobs use **.NET 8.0.x** (`actions/setup-dotnet@v4`) on `ubuntu-latest`. Conf
 
 2. **Publish to GitHub Packages** (`publish-github-packages` job)
    - Runs when triggered by tag push or manual dispatch
-   - Downloads the artifact and runs:
-     ```bash
-     dotnet nuget push "$pkg" \
-       --api-key "${{ secrets.GITHUB_TOKEN }}" \
-       --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
-       --skip-duplicate
-     ```
-   - Skips `*.symbols.nupkg` files (`IncludeSymbols` is `false` in the project file)
+   - Downloads the artifact and pushes to `https://nuget.pkg.github.com/{owner}/index.json`
 
-3. **Create GitHub release** (`github-release` job)
+3. **Publish to NuGet.org** (`publish-nuget-org` job)
+   - Runs when triggered by tag push or manual dispatch
+   - Downloads the artifact and pushes to `https://api.nuget.org/v3/index.json` using the `NUGET_API_KEY` repository secret
+   - Skips gracefully if the secret is not configured
+
+4. **Create GitHub release** (`github-release` job)
    - Runs only on tag push (`refs/tags/v*`)
    - Creates a release with `softprops/action-gh-release@v2`, attaches `.nupkg` files, and generates release notes
 
@@ -106,6 +114,7 @@ For integration tests locally, start the test database with Docker Compose (see 
 | Variable / secret | Required | Description |
 |-------------------|----------|-------------|
 | `GITHUB_TOKEN` | Automatic | Used by the release workflow to push packages to GitHub Packages and create releases. Provided by GitHub Actions; no manual secret configuration needed for standard releases. |
+| `NUGET_API_KEY` | **Yes** (for nuget.org) | API key from [nuget.org/account/apikeys](https://www.nuget.org/account/apikeys). Required for the `publish-nuget-org` job; skipped if unset. |
 | `ContinuousIntegrationBuild=true` | Set in release build | MSBuild property passed during Release configuration builds for reproducible CI output. |
 
 ### Docker Compose (integration tests only)

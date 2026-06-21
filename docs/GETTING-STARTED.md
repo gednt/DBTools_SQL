@@ -59,7 +59,7 @@ If you are adding DBTools to an existing .NET 8 application rather than working 
 2. Add the package to your project:
 
 ```bash
-dotnet add package DBTools --version 1.4.0 --source github
+dotnet add package DBTools --version 1.4.1
 ```
 
 3. Copy `DBTools/config.json.example` into your application as `config.json` and set **Copy to Output Directory → Copy always** in your IDE (or equivalent MSBuild setting).
