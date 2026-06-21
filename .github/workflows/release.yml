@@ -80,10 +80,48 @@ jobs:
             case "$pkg" in
               *.symbols.nupkg) continue ;;
             esac
-            echo "Publishing $pkg ..."
+            echo "Publishing $pkg to GitHub Packages..."
             dotnet nuget push "$pkg" \
               --api-key "${{ secrets.GITHUB_TOKEN }}" \
               --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+              --skip-duplicate
+          done
+
+  publish-nuget-org:
+    name: Publish to NuGet.org
+    needs: build-test-pack
+    runs-on: ubuntu-latest
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nupkg
+          path: artifacts
+
+      - name: Publish to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "NUGET_API_KEY secret is not configured; skipping NuGet.org publish."
+            echo "Add the API key at: https://www.nuget.org/account/apikeys"
+            exit 0
+          fi
+          shopt -s nullglob
+          for pkg in artifacts/*.nupkg; do
+            case "$pkg" in
+              *.symbols.nupkg) continue ;;
+            esac
+            echo "Publishing $pkg to NuGet.org..."
+            dotnet nuget push "$pkg" \
+              --api-key "$NUGET_API_KEY" \
+              --source https://api.nuget.org/v3/index.json \
               --skip-duplicate
           done
 

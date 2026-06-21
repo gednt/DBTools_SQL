@@ -4,15 +4,24 @@
 A multi-provider .NET 8 database access library for SQL Server, PostgreSQL, MySQL, and SQLite — with parameterized CRUD, LINQ-style queries, JOINs, upsert, and built-in SQL injection protection.
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-blue.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
-[![Version](https://img.shields.io/badge/version-1.4.0-green.svg)](https://github.com/gednt/DBTools_SQL/releases)
+[![Version](https://img.shields.io/badge/version-1.4.1-green.svg)](https://github.com/gednt/DBTools_SQL/releases)
+[![NuGet](https://img.shields.io/nuget/v/DBTools.svg?label=NuGet)](https://www.nuget.org/packages/DBTools/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](https://github.com/gednt/DBTools_SQL/blob/main/LICENSE)
 [![CI](https://github.com/gednt/DBTools_SQL/actions/workflows/ci.yml/badge.svg)](https://github.com/gednt/DBTools_SQL/actions/workflows/ci.yml)
 
 ## Installation
 
-### From GitHub Packages (recommended)
+### From NuGet.org (recommended)
 
-Releases are published to [GitHub Packages](https://github.com/gednt/DBTools_SQL/packages) on every `v*` tag.
+```bash
+dotnet add package DBTools --version 1.4.1
+```
+
+Releases are published to [nuget.org](https://www.nuget.org/packages/DBTools/) automatically when a `v*` tag is pushed (see [Deployment](docs/DEPLOYMENT.md)).
+
+### From GitHub Packages
+
+Releases are also published to [GitHub Packages](https://github.com/gednt/DBTools_SQL/packages) on every `v*` tag.
 
 1. Authenticate with a GitHub PAT that has `read:packages`:
 
@@ -27,7 +36,7 @@ dotnet nuget add source "https://nuget.pkg.github.com/gednt/index.json" \
 2. Install the package:
 
 ```bash
-dotnet add package DBTools --version 1.4.0 --source github
+dotnet add package DBTools --version 1.4.1 --source github
 ```
 
 Alternatively, copy `nuget.config.github-packages.example` to your solution as `nuget.config` and add credentials as described in that file.
@@ -43,7 +52,7 @@ SQL Server support is bundled via `Microsoft.Data.SqlClient`. For other provider
 | SQLite     | `Microsoft.Data.Sqlite`  |
 
 ```bash
-dotnet add package DBTools --version 1.4.0 --source github
+dotnet add package DBTools --version 1.4.1
 dotnet add package Npgsql   # only if using PostgreSQL
 ```
 
