@@ -9,15 +9,16 @@ Complete API documentation for the DBTools_SQL library.
 3. [SqlQueryBuilder Class](#sqlquerybuilder-class)
 4. [SqlValidator Class](#sqlvalidator-class)
 5. [LinqHelper Class](#linqhelper-class)
-6. [Linq Class](#linq-class)
-7. [DBTools Class (Base)](#dbtools-class-base)
-8. [DBToolsController Class](#dbtoolscontroller-class)
-9. [GenericObject Class](#genericobject-class)
-10. [DataExport Class](#dataexport-class)
-11. [LINQ Infrastructure](#linq-infrastructure)
-12. [Provider System](#provider-system)
-13. [Dependency Injection](#dependency-injection)
-14. [Abstractions (Interfaces)](#abstractions-interfaces)
+6. [AsyncLinqHelper Class](#asynclinqhelper-class)
+7. [Linq Class](#linq-class)
+8. [DBTools Class (Base)](#dbtools-class-base)
+9. [DBToolsController Class](#dbtoolscontroller-class)
+10. [GenericObject Class](#genericobject-class)
+11. [DataExport Class](#dataexport-class)
+12. [LINQ Infrastructure](#linq-infrastructure)
+13. [Provider System](#provider-system)
+14. [Dependency Injection](#dependency-injection)
+15. [Abstractions (Interfaces)](#abstractions-interfaces)
 
 ---
 
@@ -509,6 +510,139 @@ var query = controller.AsQueryable()
 ```
 
 **Note:** For SQL-translated deferred execution, use `Linq<TModel>` instead.
+
+---
+
+## AsyncLinqHelper Class
+
+**Namespace**: `DBTools.Controllers`
+**Generic Type**: `AsyncLinqHelper<TModel>` where TModel : class, new()
+
+Async-first generic helper for LINQ-style database manipulation. Mirrors much of `LinqHelper<TModel>` but runs on `AsyncSqlClient`, supports `CancellationToken`, and resolves table/column names through `EntityMappingResolver` (`[Table]`, `[Column]`, `[Key]`, `[NotMapped]`, and fluent configuration).
+
+Use this when you want typed async CRUD with lambda predicates and optional query interceptors (logging, audit, soft-delete). It does **not** provide JOINs or deferred `IQueryable` — use `Linq<TModel>` for those on the synchronous path.
+
+### Constructor
+
+#### `AsyncLinqHelper(AsyncSqlClient client, string tableName = null, string primaryKeyName = null, bool autoIncrement = true)`
+
+Requires an `AsyncSqlClient` instance. When `tableName` or `primaryKeyName` are omitted, they are resolved from mapping attributes on `TModel` (defaults: class name for table, `[Key]` property for primary key).
+
+```csharp
+using DBTools.Controllers;
+using DBTools.Core;
+using DBTools.Mapping;
+
+[Table("Users")]
+public class User
+{
+    [Key]
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public int Age { get; set; }
+}
+
+var client = new AsyncSqlClient();
+var users = new AsyncLinqHelper<User>(client);
+// Equivalent explicit form:
+// var users = new AsyncLinqHelper<User>(client, "Users", "Id", autoIncrement: true);
+```
+
+With dependency injection:
+
+```csharp
+public class UserRepository
+{
+    private readonly AsyncLinqHelper<User> _users;
+
+    public UserRepository(IAsyncSqlClient client)
+    {
+        _users = new AsyncLinqHelper<User>((AsyncSqlClient)client);
+    }
+}
+```
+
+---
+
+### Async Query Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `SelectAsync(string conditions = "", object[] parameters = null, CancellationToken ct = default)` | `Task<IEnumerable<TModel>>` | Select with optional WHERE |
+| `AllAsync(CancellationToken ct = default)` | `Task<IEnumerable<TModel>>` | All records |
+| `WhereAsync(Expression<Func<TModel, bool>> predicate, CancellationToken ct = default)` | `Task<List<TModel>>` | Lambda filter |
+| `FirstOrDefaultAsync(Expression<Func<TModel, bool>> predicate, CancellationToken ct = default)` | `Task<TModel>` | First lambda match |
+| `FirstOrDefaultAsync(string conditions = "", object[] parameters = null, CancellationToken ct = default)` | `Task<TModel>` | First string-condition match |
+| `CountAsync(Expression<Func<TModel, bool>> predicate = null, CancellationToken ct = default)` | `Task<int>` | Count (optional filter) |
+| `AnyAsync(Expression<Func<TModel, bool>> predicate = null, CancellationToken ct = default)` | `Task<bool>` | Existence check |
+| `FindAsync(object primaryKeyValue, CancellationToken ct = default)` | `Task<TModel>` | Find by primary key |
+
+---
+
+### Async Mutation Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `InsertAsync(TModel model, CancellationToken ct = default)` | `Task<bool>` | Insert; excludes PK when `autoIncrement` is true |
+| `InsertAndFindAsync<TProperty>(TModel model, Expression<Func<TModel, TProperty>> findByProperty, CancellationToken ct = default)` | `Task<TModel>` | Insert then re-select by a property value |
+| `UpdateAsync(TModel model, Expression<Func<TModel, bool>> predicate, CancellationToken ct = default)` | `Task<bool>` | Update rows matching predicate (WHERE required) |
+| `SaveChangesAsync(TModel entity, CancellationToken ct = default)` | `Task<bool>` | Update by primary key value on the entity |
+| `RemoveAsync(Expression<Func<TModel, bool>> predicate, CancellationToken ct = default)` | `Task<bool>` | Delete rows matching predicate (WHERE required) |
+| `InsertRangeAsync(IEnumerable<TModel> models, CancellationToken ct = default)` | `Task<bool>` | Bulk insert inside a transaction |
+
+---
+
+### Supported Expression Operators
+
+Same set as `LinqHelper<TModel>`: `==`, `!=`, `>`, `>=`, `<`, `<=`, `&&`, `||`, `!`.
+
+---
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Client` | `AsyncSqlClient` | Underlying async client (interceptors apply here) |
+| `TableName` | `string` | Resolved table name |
+| `PrimaryKeyName` | `string` | Resolved primary key column |
+
+---
+
+### Example
+
+```csharp
+using DBTools.Controllers;
+using DBTools.Core;
+
+var client = new AsyncSqlClient();
+var users = new AsyncLinqHelper<User>(client, "Users", "Id");
+
+// Queries
+var adults = await users.WhereAsync(u => u.Age > 18);
+var one = await users.FirstOrDefaultAsync(u => u.Id == 1);
+int count = await users.CountAsync(u => u.Status == "active");
+bool exists = await users.AnyAsync(u => u.Email == "alice@example.com");
+var byId = await users.FindAsync(42);
+
+// Mutations
+await users.InsertAsync(new User { Name = "Alice", Age = 28 });
+await users.UpdateAsync(updated, u => u.Id == updated.Id);
+await users.SaveChangesAsync(existingUser);
+await users.RemoveAsync(u => u.Id == 5);
+
+// Transactional bulk insert
+await users.InsertRangeAsync(new[]
+{
+    new User { Name = "Bob", Age = 30 },
+    new User { Name = "Carol", Age = 25 }
+});
+```
+
+**Notes:**
+
+- `FindAsync`, `SaveChangesAsync`, and `InsertAndFindAsync` require a configured primary key.
+- `UpdateAsync` and `RemoveAsync` throw if the predicate produces an empty WHERE clause.
+- Register interceptors on `AsyncSqlClient` or via `AddDbTools()` — see [INTERCEPTORS.md](INTERCEPTORS.md).
 
 ---
 

@@ -158,6 +158,34 @@ users.Remove(u => u.Id == 5);
 
 For property-based filters (`WhereContains`, `WhereBetween`), JOINs, and deferred `IQueryable` execution, use `Linq<T>` instead. See [docs/EXAMPLES.md](docs/EXAMPLES.md).
 
+### Async LINQ with `AsyncLinqHelper<T>`
+
+For async CRUD with lambda predicates, attribute-based table mapping, and query interceptors, use `AsyncLinqHelper<T>` on top of `AsyncSqlClient`:
+
+```csharp
+using DBTools.Controllers;
+using DBTools.Core;
+using DBTools.Mapping;
+
+[Table("Users")]
+public class User
+{
+    [Key]
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public int Age { get; set; }
+}
+
+var client = new AsyncSqlClient();
+var users = new AsyncLinqHelper<User>(client);
+
+var adults = await users.WhereAsync(u => u.Age > 18);
+await users.InsertAsync(new User { Name = "Alice", Age = 28 });
+await users.RemoveAsync(u => u.Id == 5);
+```
+
+With DI, inject `IAsyncSqlClient` and pass it to the constructor. See [docs/API_REFERENCE.md](docs/API_REFERENCE.md#asynclinqhelper-class) and [docs/EXAMPLES.md](docs/EXAMPLES.md#async-linq-with-asynclinqhelper).
+
 ### Dependency injection
 
 ```csharp

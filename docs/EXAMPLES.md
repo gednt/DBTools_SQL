@@ -6,15 +6,16 @@ Comprehensive code examples for all DBTools_SQL features.
 
 1. [Basic Operations with SqlClient](#basic-operations-with-sqlclient)
 2. [LINQ Expression Queries with LinqHelper](#linq-expression-queries-with-linqhelper)
-3. [Property-Based Queries with Linq](#property-based-queries-with-linq)
-4. [JOIN Queries](#join-queries)
-5. [Deferred IQueryable Execution](#deferred-iqueryable-execution)
-6. [Advanced Queries](#advanced-queries)
-7. [Real-World Applications](#real-world-applications)
-8. [Data Export](#data-export)
-9. [Error Handling](#error-handling)
-10. [Dependency Injection](#dependency-injection)
-11. [Performance Optimization](#performance-optimization)
+3. [Async LINQ with AsyncLinqHelper](#async-linq-with-asynclinqhelper)
+4. [Property-Based Queries with Linq](#property-based-queries-with-linq)
+5. [JOIN Queries](#join-queries)
+6. [Deferred IQueryable Execution](#deferred-iqueryable-execution)
+7. [Advanced Queries](#advanced-queries)
+8. [Real-World Applications](#real-world-applications)
+9. [Data Export](#data-export)
+10. [Error Handling](#error-handling)
+11. [Dependency Injection](#dependency-injection)
+12. [Performance Optimization](#performance-optimization)
 
 ---
 
@@ -251,6 +252,139 @@ bool any = userController.Any("Age > @param0", new object[] { 65 });
 // Get all records
 var all = userController.All();
 ```
+
+---
+
+## Async LINQ with AsyncLinqHelper
+
+`AsyncLinqHelper<TModel>` is the async counterpart to `LinqHelper<TModel>`. It uses `AsyncSqlClient`, honors query interceptors, and resolves column/table names from mapping attributes (`[Table]`, `[Column]`, `[Key]`, `[NotMapped]`).
+
+### Setup with attribute mapping
+
+```csharp
+using DBTools.Controllers;
+using DBTools.Core;
+using DBTools.Mapping;
+
+[Table("Users")]
+public class User
+{
+    [Key]
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Email { get; set; }
+    public int Age { get; set; }
+}
+
+// Direct construction
+var client = new AsyncSqlClient();
+var users = new AsyncLinqHelper<User>(client);
+
+// Or with explicit table/PK (same as LinqHelper-style setup)
+var usersExplicit = new AsyncLinqHelper<User>(client, "Users", "Id", autoIncrement: true);
+```
+
+### Setup with dependency injection
+
+```csharp
+using DBTools.Configuration;
+using DBTools.Interceptors;
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddDbTools(options =>
+{
+    options.Provider = DatabaseProvider.SqlServer;
+    options.ConnectionString = "Server=localhost;Database=MyApp;Trusted_Connection=True;";
+    options.AddInterceptor(new LoggingInterceptor());
+});
+
+// In a service
+public class UserService
+{
+    private readonly AsyncLinqHelper<User> _users;
+
+    public UserService(IAsyncSqlClient asyncClient)
+    {
+        _users = new AsyncLinqHelper<User>((AsyncSqlClient)asyncClient);
+    }
+
+    public async Task<List<User>> GetActiveAdultsAsync(CancellationToken ct = default)
+    {
+        return await _users.WhereAsync(u => u.Age >= 18, ct);
+    }
+}
+```
+
+### Async query examples
+
+```csharp
+// All records
+var all = await users.AllAsync();
+
+// Lambda WHERE
+var adults = await users.WhereAsync(u => u.Age > 18);
+
+// Combined conditions
+var filtered = await users.WhereAsync(u => u.Age > 18 && u.Age < 65);
+
+// First match
+var first = await users.FirstOrDefaultAsync(u => u.Name == "Alice");
+
+// String-based conditions (same parameter style as SqlClient)
+var byStatus = await users.SelectAsync("Age > @param0", new object[] { 21 });
+
+// Count and Any
+int count = await users.CountAsync(u => u.Age > 18);
+bool any = await users.AnyAsync(u => u.Email == "bob@example.com");
+
+// Primary key lookup
+var user = await users.FindAsync(42);
+```
+
+### Async mutation examples
+
+```csharp
+// Insert (PK omitted when autoIncrement is true)
+bool inserted = await users.InsertAsync(new User
+{
+    Name = "Alice",
+    Email = "alice@example.com",
+    Age = 28
+});
+
+// Insert and reload by a natural key
+var created = await users.InsertAndFindAsync(
+    new User { Name = "Bob", Email = "bob@example.com", Age = 30 },
+    u => u.Email
+);
+
+// Update by predicate
+var updated = new User { Id = 1, Name = "Alice Updated", Email = "alice@example.com", Age = 29 };
+await users.UpdateAsync(updated, u => u.Id == 1);
+
+// Update by primary key on the entity
+await users.SaveChangesAsync(updated);
+
+// Delete by predicate
+await users.RemoveAsync(u => u.Id == 5);
+
+// Transactional bulk insert
+await users.InsertRangeAsync(new[]
+{
+    new User { Name = "Carol", Email = "carol@example.com", Age = 25 },
+    new User { Name = "Dave", Email = "dave@example.com", Age = 31 }
+});
+```
+
+### When to use AsyncLinqHelper vs LinqHelper vs Linq
+
+| Helper | Client | Async | JOINs / IQueryable | Interceptors | Attribute mapping |
+|--------|--------|-------|--------------------|--------------|-------------------|
+| `LinqHelper<T>` | `SqlClient` | No | No | No | Manual table/PK args |
+| `AsyncLinqHelper<T>` | `AsyncSqlClient` | Yes | No | Yes | `[Table]` / `[Key]` / fluent |
+| `Linq<T>` | `SqlClient` | No | Yes | No | Manual table/PK args |
+
+For ASP.NET Core apps using `AddDbTools()`, prefer `AsyncLinqHelper<T>` with the injected `IAsyncSqlClient` so logging, audit, and soft-delete interceptors run on every query.
 
 ---
 
