@@ -1,0 +1,14 @@
+{
+  "doc_path": "docs/INTERCEPTORS.md",
+  "claims_checked": 13,
+  "claims_passed": 12,
+  "claims_failed": 1,
+  "failures": [
+    {
+      "line": 223,
+      "claim": "TenantFilterInterceptor(",
+      "expected": "function 'TenantFilterInterceptor' in codebase",
+      "actual": "no definition found (example-only class shown in doc, not present in source)"
+    }
+  ]
+}

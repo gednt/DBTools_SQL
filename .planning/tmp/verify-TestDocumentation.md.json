@@ -1,0 +1,326 @@
+{
+  "doc_path": "DBToolsUnitTest/TestDocumentation.md",
+  "claims_checked": 122,
+  "claims_passed": 69,
+  "claims_failed": 53,
+  "failures": [
+    {
+      "line": 9,
+      "claim": "DbTools",
+      "expected": "namespace 'DbTools' in codebase",
+      "actual": "namespace not found (project uses DBTools.Core, DBTools.Models, DBTools.Controllers, DBTools.Abstractions, DBTools.Export)"
+    },
+    {
+      "line": 10,
+      "claim": "DbTools.Model",
+      "expected": "namespace 'DbTools.Model' in codebase",
+      "actual": "namespace not found (actual: DBTools.Models)"
+    },
+    {
+      "line": 11,
+      "claim": "DbTools.Controller",
+      "expected": "namespace 'DbTools.Controller' in codebase",
+      "actual": "namespace not found (actual: DBTools.Controllers)"
+    },
+    {
+      "line": 12,
+      "claim": "DbTools.Interfaces",
+      "expected": "namespace 'DbTools.Interfaces' in codebase",
+      "actual": "namespace not found (actual: DBTools.Abstractions)"
+    },
+    {
+      "line": 13,
+      "claim": "DBTools_Utilities",
+      "expected": "namespace 'DBTools_Utilities' in codebase",
+      "actual": "namespace not found (actual: DBTools.Core for SqlClient, DBTools.Export for DataExport)"
+    },
+    {
+      "line": 17,
+      "claim": "UtilsValidationTests",
+      "expected": "class 'UtilsValidationTests' in codebase",
+      "actual": "class not found (actual: SqlClientValidationTests in DBToolsUnitTest/Core/SqlClientValidationTests.cs)"
+    },
+    {
+      "line": 21,
+      "claim": "Select_WithValidIdentifiers_ShouldNotThrowException",
+      "expected": "function 'Select_WithValidIdentifiers_ShouldNotThrowException' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 22,
+      "claim": "Select_WithBracketedIdentifiers_ShouldNotThrowException",
+      "expected": "function 'Select_WithBracketedIdentifiers_ShouldNotThrowException' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 23,
+      "claim": "Select_WithSchemaQualifiedTable_ShouldNotThrowException",
+      "expected": "function 'Select_WithSchemaQualifiedTable_ShouldNotThrowException' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 24,
+      "claim": "Select_WithAsterisk_ShouldNotThrowException",
+      "expected": "function 'Select_WithAsterisk_ShouldNotThrowException' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 27,
+      "claim": "Select_WithInvalidFieldCharacters_ShouldThrowException",
+      "expected": "function 'Select_WithInvalidFieldCharacters_ShouldThrowException' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 28,
+      "claim": "Select_WithInvalidTableName_ShouldThrowException",
+      "expected": "function 'Select_WithInvalidTableName_ShouldThrowException' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 31,
+      "claim": "Insert_WithNullFields_ShouldThrowException",
+      "expected": "function 'Insert_WithNullFields_ShouldThrowException' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 33,
+      "claim": "Insert_WithMismatchedArrayLengths_ShouldThrowException",
+      "expected": "function 'Insert_WithMismatchedArrayLengths_ShouldThrowException' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 36,
+      "claim": "Delete_WithEmptyCondition_ShouldThrowException",
+      "expected": "function 'Delete_WithEmptyCondition_ShouldThrowException' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 37,
+      "claim": "Delete_WithNullCondition_ShouldThrowException",
+      "expected": "function 'Delete_WithNullCondition_ShouldThrowException' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 38,
+      "claim": "Delete_WithInvalidTableName_ShouldThrowException",
+      "expected": "function 'Delete_WithInvalidTableName_ShouldThrowException' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 40,
+      "claim": "UtilsParameterizedQueryTests",
+      "expected": "class 'UtilsParameterizedQueryTests' in codebase",
+      "actual": "class not found (actual: SqlClientParameterizedQueryTests in DBToolsUnitTest/Core/SqlClientParameterizedQueryTests.cs)"
+    },
+    {
+      "line": 55,
+      "claim": "UtilsQueryBuilderTests",
+      "expected": "class 'UtilsQueryBuilderTests' in codebase",
+      "actual": "class not found (actual: SqlClientQueryBuilderTests in DBToolsUnitTest/Core/SqlClientQueryBuilderTests.cs)"
+    },
+    {
+      "line": 62,
+      "claim": "Insert_Query_WithNumericValues_ShouldNotAddQuotes",
+      "expected": "function 'Insert_Query_WithNumericValues_ShouldNotAddQuotes' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 63,
+      "claim": "Insert_Query_WithStringValues_ShouldAddQuotes",
+      "expected": "function 'Insert_Query_WithStringValues_ShouldAddQuotes' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 64,
+      "claim": "Insert_Query_WithSqlInjectionAttempt_ShouldEscapeQuotes",
+      "expected": "function 'Insert_Query_WithSqlInjectionAttempt_ShouldEscapeQuotes' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 75,
+      "claim": "UtilsConnectionTests",
+      "expected": "class 'UtilsConnectionTests' in codebase",
+      "actual": "class not found (actual: SqlClientConnectionTests in DBToolsUnitTest/Core/SqlClientConnectionTests.cs)"
+    },
+    {
+      "line": 83,
+      "claim": "DbTools",
+      "expected": "namespace 'DbTools' in codebase",
+      "actual": "namespace not found (actual: DBTools.Core for DBTools class)"
+    },
+    {
+      "line": 94,
+      "claim": "DbTools.Model",
+      "expected": "namespace 'DbTools.Model' in codebase",
+      "actual": "namespace not found (actual: DBTools.Models)"
+    },
+    {
+      "line": 97,
+      "claim": "Constructor_WithUtils_ShouldCreateInstance",
+      "expected": "function 'Constructor_WithUtils_ShouldCreateInstance' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 101,
+      "claim": "DbTools.Model",
+      "expected": "namespace 'DbTools.Model' in codebase",
+      "actual": "namespace not found (actual: DBTools.Models)"
+    },
+    {
+      "line": 104,
+      "claim": "Value_CanBeAnyType",
+      "expected": "function 'Value_CanBeAnyType' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 107,
+      "claim": "DBTools_Utilities",
+      "expected": "namespace 'DBTools_Utilities' in codebase",
+      "actual": "namespace not found (actual: DBTools.Export for DataExport)"
+    },
+    {
+      "line": 111,
+      "claim": "ToCsv_WithDBNull_ShouldHandleGracefully",
+      "expected": "function 'ToCsv_WithDBNull_ShouldHandleGracefully' in codebase",
+      "actual": "no definition found (similar test: ToCsv_WithDbNullValue_ShouldReturnEmptyField)"
+    },
+    {
+      "line": 112,
+      "claim": "ToCsv_WithoutColumns_ShouldNotIncludeColumnNames",
+      "expected": "function 'ToCsv_WithoutColumns_ShouldNotIncludeColumnNames' in codebase",
+      "actual": "no definition found (similar test: ToCsv_WithoutColumnsAndTypes_ShouldReturnDataOnly)"
+    },
+    {
+      "line": 113,
+      "claim": "ToCsv_WithCustomSeparator_ShouldUseSeparator",
+      "expected": "function 'ToCsv_WithCustomSeparator_ShouldUseSeparator' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 120,
+      "claim": "DbTools.Controller",
+      "expected": "namespace 'DbTools.Controller' in codebase",
+      "actual": "namespace not found (actual: DBTools.Controllers)"
+    },
+    {
+      "line": 126,
+      "claim": "DbTools.Controller",
+      "expected": "namespace 'DbTools.Controller' in codebase",
+      "actual": "namespace not found (actual: DBTools.Controllers)"
+    },
+    {
+      "line": 130,
+      "claim": "Constructor_WithUtilsInstance_ShouldInitialize",
+      "expected": "function 'Constructor_WithUtilsInstance_ShouldInitialize' in codebase",
+      "actual": "no definition found (similar test: Constructor_WithSqlClientInstance_ShouldInitialize)"
+    },
+    {
+      "line": 131,
+      "claim": "Error_Property_ShouldReflectUtilsError",
+      "expected": "function 'Error_Property_ShouldReflectUtilsError' in codebase",
+      "actual": "no definition found (similar test: Error_Property_ShouldReflectSqlClientError)"
+    },
+    {
+      "line": 135,
+      "claim": "Delete_WithoutCondition_ShouldThrowException",
+      "expected": "function 'Delete_WithoutCondition_ShouldThrowException' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 154,
+      "claim": "Insert_Query_WithNullValue_ShouldHandleCorrectly",
+      "expected": "function 'Insert_Query_WithNullValue_ShouldHandleCorrectly' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 155,
+      "claim": "Insert_Query_WithEmptyStringValue_ShouldHandleCorrectly",
+      "expected": "function 'Insert_Query_WithEmptyStringValue_ShouldHandleCorrectly' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 157,
+      "claim": "Select_WithEmptyCondition_ShouldReturnQueryWithoutWhere",
+      "expected": "function 'Select_WithEmptyCondition_ShouldReturnQueryWithoutWhere' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 163,
+      "claim": "Select_ObsoleteOverload_ShouldStillWork",
+      "expected": "function 'Select_ObsoleteOverload_ShouldStillWork' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 165,
+      "claim": "Delete_ObsoleteOverload_RequiresCondition",
+      "expected": "function 'Delete_ObsoleteOverload_RequiresCondition' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 166,
+      "claim": "Select_QueryOverload_ObsoleteVersion_ShouldWork",
+      "expected": "function 'Select_QueryOverload_ObsoleteVersion_ShouldWork' in codebase",
+      "actual": "no definition found in DBToolsUnitTest"
+    },
+    {
+      "line": 195,
+      "claim": "96 comprehensive unit tests",
+      "expected": "96 [TestMethod] attributes in DBToolsUnitTest",
+      "actual": "229 [TestMethod] attributes found in DBToolsUnitTest"
+    },
+    {
+      "line": 215,
+      "claim": "DBTools_Utilities",
+      "expected": "namespace 'DBTools_Utilities' in codebase",
+      "actual": "namespace not found (tests use DBTools.Core and DBTools.Export)"
+    },
+    {
+      "line": 216,
+      "claim": "DbTools.Model",
+      "expected": "namespace 'DbTools.Model' in codebase",
+      "actual": "namespace not found (actual: DBTools.Models)"
+    },
+    {
+      "line": 217,
+      "claim": "DbTools.Controller",
+      "expected": "namespace 'DbTools.Controller' in codebase",
+      "actual": "namespace not found (actual: DBTools.Controllers)"
+    },
+    {
+      "line": 218,
+      "claim": "DbTools",
+      "expected": "namespace 'DbTools' in codebase",
+      "actual": "namespace not found (actual: DBTools.Core)"
+    },
+    {
+      "line": 226,
+      "claim": "All 96 tests should pass",
+      "expected": "96 unit tests in DBToolsUnitTest",
+      "actual": "229 [TestMethod] attributes found in DBToolsUnitTest"
+    },
+    {
+      "line": 239,
+      "claim": "DbTools",
+      "expected": "namespace 'DbTools' in codebase",
+      "actual": "namespace not found (project uses DBTools.* namespaces)"
+    },
+    {
+      "line": 239,
+      "claim": "DbTools.Model",
+      "expected": "namespace 'DbTools.Model' in codebase",
+      "actual": "namespace not found (actual: DBTools.Models)"
+    },
+    {
+      "line": 239,
+      "claim": "DbTools.Controller",
+      "expected": "namespace 'DbTools.Controller' in codebase",
+      "actual": "namespace not found (actual: DBTools.Controllers)"
+    },
+    {
+      "line": 239,
+      "claim": "DBTools_Utilities",
+      "expected": "namespace 'DBTools_Utilities' in codebase",
+      "actual": "namespace not found (actual: DBTools.Core, DBTools.Export)"
+    }
+  ]
+}

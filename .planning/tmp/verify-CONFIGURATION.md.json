@@ -1,0 +1,14 @@
+{
+  "doc_path": "docs/CONFIGURATION.md",
+  "claims_checked": 33,
+  "claims_passed": 32,
+  "claims_failed": 1,
+  "failures": [
+    {
+      "line": 139,
+      "claim": "QUICKSTART.md",
+      "expected": "file exists",
+      "actual": "file not found at QUICKSTART.md (exists at docs/QUICKSTART.md)"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "doc_path": "docs/SECURITY.md",
+  "claims_checked": 7,
+  "claims_passed": 5,
+  "claims_failed": 2,
+  "failures": [
+    {
+      "line": 186,
+      "claim": "config.json",
+      "expected": "file exists",
+      "actual": "file not found at /home/felipecoelhosilva/Repos/DBTools_SQL/config.json (also not found at DBTools/config.json; only DBTools/config.json.example exists)"
+    },
+    {
+      "line": 434,
+      "claim": "config.json",
+      "expected": "file exists",
+      "actual": "file not found at /home/felipecoelhosilva/Repos/DBTools_SQL/config.json (also not found at DBTools/config.json; only DBTools/config.json.example exists)"
+    }
+  ]
+}

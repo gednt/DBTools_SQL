@@ -1,0 +1,14 @@
+{
+  "doc_path": "docs/QUICKSTART.md",
+  "claims_checked": 8,
+  "claims_passed": 7,
+  "claims_failed": 1,
+  "failures": [
+    {
+      "line": 31,
+      "claim": "config.json.example",
+      "expected": "file exists",
+      "actual": "file not found at config.json.example (exists at DBTools/config.json.example)"
+    }
+  ]
+}
