@@ -1,0 +1,26 @@
+{
+  "doc_path": "docs/API_REFERENCE.md",
+  "claims_checked": 78,
+  "claims_passed": 75,
+  "claims_failed": 3,
+  "failures": [
+    {
+      "line": 36,
+      "claim": "config.json",
+      "expected": "file exists",
+      "actual": "file not found at config.json"
+    },
+    {
+      "line": 297,
+      "claim": "config.json",
+      "expected": "file exists",
+      "actual": "file not found at config.json"
+    },
+    {
+      "line": 303,
+      "claim": "config.json",
+      "expected": "file exists",
+      "actual": "file not found at config.json"
+    }
+  ]
+}

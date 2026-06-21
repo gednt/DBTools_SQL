@@ -1,0 +1,14 @@
+{
+  "doc_path": "docs/TESTING.md",
+  "claims_checked": 12,
+  "claims_passed": 11,
+  "claims_failed": 1,
+  "failures": [
+    {
+      "line": 35,
+      "claim": "DBToolsUnitTest/config.json",
+      "expected": "file exists",
+      "actual": "file not found at DBToolsUnitTest/config.json (gitignored; created from config.json.example during setup)"
+    }
+  ]
+}
