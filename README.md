@@ -6,7 +6,7 @@ A multi-provider .NET 8 database access library for SQL Server, PostgreSQL, MySQ
 [![.NET](https://img.shields.io/badge/.NET-8.0-blue.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Version](https://img.shields.io/badge/version-1.4.1-green.svg)](https://github.com/gednt/DBTools_SQL/releases)
 [![NuGet](https://img.shields.io/nuget/v/DBTools.svg?label=NuGet)](https://www.nuget.org/packages/DBTools/)
-[![License](https://img.shields.io/badge/license-MIT-orange.svg)](https://github.com/gednt/DBTools_SQL/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![CI](https://github.com/gednt/DBTools_SQL/actions/workflows/ci.yml/badge.svg)](https://github.com/gednt/DBTools_SQL/actions/workflows/ci.yml)
 
 ## Installation
@@ -222,4 +222,4 @@ services.AddDbTools(options =>
 
 ## License
 
-This project is licensed under the MIT License (see `PackageLicenseExpression` in `DBTools/DBTools.csproj`).
+This project is licensed under the [MIT License](LICENSE).
