@@ -1,12 +1,17 @@
 # Docker Compose configuration for DBTools integration tests.
 # Usage:
-#   docker compose up -d sqlserver --wait
-#   docker compose up sqlserver-setup --abort-on-container-exit --exit-code-from sqlserver-setup
+#   docker compose up -d
+#   docker compose up setup-all --abort-on-container-exit --exit-code-from setup-all
 #   docker compose down -v
 #
-# The SQL Server container creates a testDB database and testUser login via sqlserver-setup.
+# Containers:
+#   - SQL Server on port 1433
+#   - PostgreSQL on port 5432
+#   - MySQL on port 3306
+#   - SQLite (file-based, no container needed)
 
 services:
+  # SQL Server
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: dbtools-sqlserver
@@ -46,4 +51,104 @@ services:
         "$$SQLCMD" -b -S sqlserver -U sa -P "TestStrong!Passw0rd" -C -Q "IF NOT EXISTS (SELECT 1 FROM sys.server_role_members rm JOIN sys.server_principals r ON rm.role_principal_id = r.principal_id JOIN sys.server_principals m ON rm.member_principal_id = m.principal_id WHERE r.name = N'sysadmin' AND m.name = N'testUser') ALTER SERVER ROLE sysadmin ADD MEMBER testUser;"
         echo "Applying integration test schema..."
         "$$SQLCMD" -b -S sqlserver -U sa -P "TestStrong!Passw0rd" -C -d testDB -i /setup.sql
-        echo "Setup complete."
+        echo "SQL Server setup complete."
+
+  # PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: dbtools-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: testUser
+      POSTGRES_PASSWORD: Integration!123
+      POSTGRES_DB: testDB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testUser -d testDB"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  postgres-setup:
+    image: postgres:16-alpine
+    container_name: dbtools-postgres-setup
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: testUser
+      POSTGRES_PASSWORD: Integration!123
+      POSTGRES_DB: testDB
+    volumes:
+      - ./scripts/postgres-integration-setup.sql:/setup.sql:ro
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -euo pipefail
+        echo "Waiting for PostgreSQL to be ready..."
+        sleep 2
+        echo "Applying integration test schema..."
+        psql -U testUser -d testDB -f /setup.sql
+        echo "PostgreSQL setup complete."
+
+  # MySQL
+  mysql:
+    image: mysql:8.0
+    container_name: dbtools-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: Root!Passw0rd
+      MYSQL_USER: testUser
+      MYSQL_PASSWORD: Integration!123
+      MYSQL_DATABASE: testDB
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pRoot!Passw0rd"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  mysql-setup:
+    image: mysql:8.0
+    container_name: dbtools-mysql-setup
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_ROOT_PASSWORD: Root!Passw0rd
+      MYSQL_USER: testUser
+      MYSQL_PASSWORD: Integration!123
+      MYSQL_DATABASE: testDB
+    volumes:
+      - ./scripts/mysql-integration-setup.sql:/setup.sql:ro
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -euo pipefail
+        echo "Waiting for MySQL to be ready..."
+        sleep 5
+        echo "Applying integration test schema..."
+        mysql -h 127.0.0.1 -u root -pRoot!Passw0rd testDB < /setup.sql
+        echo "MySQL setup complete."
+
+  # Setup all (runs after all individual setups)
+  setup-all:
+    image: alpine:3.19
+    container_name: dbtools-setup-all
+    depends_on:
+      sqlserver-setup:
+        condition: service_completed_successfully
+      postgres-setup:
+        condition: service_completed_successfully
+      mysql-setup:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "All database setups completed successfully!"
+        echo "SQL Server: localhost:1433 (testDB/testUser)"
+        echo "PostgreSQL: localhost:5432 (testDB/testUser)"
+        echo "MySQL: localhost:3306 (testDB/testUser)"
+        echo "SQLite: testDB.db file in project root"

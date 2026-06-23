@@ -1,3 +1,4 @@
+using DBTools.Abstractions;
 using DBTools.Core;
 using System;
 using System.Collections.Generic;
@@ -15,17 +16,20 @@ namespace DBTools.Linq
     public class DbQueryProvider : IQueryProvider
     {
         private readonly SqlClient _utils;
+        private readonly IDbProvider _provider;
         private readonly string _tableName;
         private readonly string _primaryKeyName;
         private readonly Func<DataView, IEnumerable<object>> _mapDataView;
 
         public DbQueryProvider(
             SqlClient utils,
+            IDbProvider provider,
             string tableName,
             string primaryKeyName,
             Func<DataView, IEnumerable<object>> mapDataView)
         {
             _utils = utils ?? throw new ArgumentNullException(nameof(utils));
+            _provider = provider;
             _tableName = tableName ?? throw new ArgumentNullException(nameof(tableName));
             _primaryKeyName = primaryKeyName;
             _mapDataView = mapDataView ?? throw new ArgumentNullException(nameof(mapDataView));
@@ -72,7 +76,7 @@ namespace DBTools.Linq
         {
             if (expression == null) throw new ArgumentNullException(nameof(expression));
 
-            var translator = new DbExpressionTranslator(_tableName, "t0");
+            var translator = new DbExpressionTranslator(_tableName, "t0", null, _provider);
 
             // Set primary key for ORDER BY fallback
             if (!string.IsNullOrEmpty(_primaryKeyName))
@@ -143,7 +147,7 @@ namespace DBTools.Linq
         {
             if (expression == null) throw new ArgumentNullException(nameof(expression));
 
-            var translator = new DbExpressionTranslator(_tableName, "t0");
+            var translator = new DbExpressionTranslator(_tableName, "t0", null, _provider);
 
             if (!string.IsNullOrEmpty(_primaryKeyName))
                 translator.SetPrimaryKeyFallback(_primaryKeyName);

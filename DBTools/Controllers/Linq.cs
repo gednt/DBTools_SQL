@@ -667,6 +667,7 @@ namespace DBTools.Controllers
         {
             var provider = new DbQueryProvider(
                 Utils,
+                Utils.Provider,
                 TableName,
                 PrimaryKeyName,
                 dataView => MapDataViewToModels(dataView).Cast<object>());
