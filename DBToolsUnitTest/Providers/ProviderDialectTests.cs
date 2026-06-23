@@ -373,27 +373,33 @@ namespace DBToolsUnitTest.Providers
         }
 
         [TestMethod]
-        [ExpectedException(typeof(InvalidOperationException))]
-        public void PostgreSQL_CreateConnection_ThrowsWhenPackageNotLoaded()
+        public void PostgreSQL_CreateConnection_ReturnsNpgsqlConnection()
         {
             var provider = new PostgresProvider();
-            provider.CreateConnection("Host=localhost;Database=test;");
+            var connection = provider.CreateConnection("Host=localhost;Database=test;");
+            Assert.IsNotNull(connection);
+            Assert.AreEqual("Npgsql.NpgsqlConnection", connection.GetType().FullName);
+            connection.Dispose();
         }
 
         [TestMethod]
-        [ExpectedException(typeof(InvalidOperationException))]
-        public void MySQL_CreateConnection_ThrowsWhenPackageNotLoaded()
+        public void MySQL_CreateConnection_ReturnsMySqlConnection()
         {
             var provider = new MySqlProvider();
-            provider.CreateConnection("Server=localhost;Database=test;");
+            var connection = provider.CreateConnection("Server=localhost;Database=test;");
+            Assert.IsNotNull(connection);
+            Assert.AreEqual("MySql.Data.MySqlClient.MySqlConnection", connection.GetType().FullName);
+            connection.Dispose();
         }
 
         [TestMethod]
-        [ExpectedException(typeof(InvalidOperationException))]
-        public void SQLite_CreateConnection_ThrowsWhenPackageNotLoaded()
+        public void SQLite_CreateConnection_ReturnsSqliteConnection()
         {
             var provider = new SqliteProvider();
-            provider.CreateConnection("Data Source=:memory:");
+            var connection = provider.CreateConnection("Data Source=:memory:");
+            Assert.IsNotNull(connection);
+            Assert.AreEqual("Microsoft.Data.Sqlite.SqliteConnection", connection.GetType().FullName);
+            connection.Dispose();
         }
 
         #endregion
