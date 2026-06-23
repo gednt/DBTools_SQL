@@ -373,3 +373,4 @@ FodyWeavers.xsd
 *.backup
 *.csproj.backup
 packages.config.backup
+testDB.db

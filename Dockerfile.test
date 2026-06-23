@@ -1,0 +1,21 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS test
+
+WORKDIR /src
+
+COPY DBTools.sln .
+COPY nuget.config .
+COPY DBTools/DBTools.csproj DBTools/
+COPY DBToolsUnitTest/DBToolsUnitTest.csproj DBToolsUnitTest/
+RUN dotnet restore DBTools.sln
+
+COPY . .
+RUN cp DBTools/config.json.example DBTools/config.json && \
+    cp DBToolsUnitTest/config.json.example DBToolsUnitTest/config.json && \
+    dotnet build DBTools.sln --configuration Release
+
+COPY scripts/switch-provider.sh /switch-provider.sh
+RUN chmod +x /switch-provider.sh
+
+WORKDIR /src
+
+ENTRYPOINT ["/bin/bash", "-c", "/switch-provider.sh && dotnet test DBTools.sln --no-build --configuration Release --verbosity normal"]

@@ -1,0 +1,10 @@
+bin/
+obj/
+TestResults/
+.git/
+.idea/
+.planning/
+.opencode/
+openspec/
+artifacts/
+testDB.db
