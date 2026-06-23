@@ -1,13 +1,23 @@
 # Docker Compose configuration for DBTools integration tests.
 # Usage:
-#   docker compose up -d
-#   docker compose up setup-all --abort-on-container-exit --exit-code-from setup-all
-#   docker compose down -v
+#   Run all tests (unit + integration) inside Docker:
+#     docker compose run --rm test-runner
+#
+#   Run against a specific provider:
+#     docker compose run --rm -e TEST_PROVIDER=PostgreSQL test-runner
+#
+#   Start databases only (no tests):
+#     docker compose up -d sqlserver postgres mysql --wait
+#     docker compose up setup-all --abort-on-container-exit --exit-code-from setup-all
+#
+#   Clean up:
+#     docker compose down -v --remove-orphans
 #
 # Containers:
 #   - SQL Server on port 1433
 #   - PostgreSQL on port 5432
 #   - MySQL on port 3306
+#   - test-runner: builds and runs the full test suite inside Docker
 #   - SQLite (file-based, no container needed)
 
 services:
@@ -152,3 +162,21 @@ services:
         echo "PostgreSQL: localhost:5432 (testDB/testUser)"
         echo "MySQL: localhost:3306 (testDB/testUser)"
         echo "SQLite: testDB.db file in project root"
+
+  # Test runner — builds and runs the test suite inside Docker
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: dbtools-test-runner
+    depends_on:
+      sqlserver-setup:
+        condition: service_completed_successfully
+      postgres-setup:
+        condition: service_completed_successfully
+      mysql-setup:
+        condition: service_completed_successfully
+    environment:
+      - TEST_PROVIDER=${TEST_PROVIDER:-SqlServer}
+    volumes:
+      - ./TestResults:/src/TestResults

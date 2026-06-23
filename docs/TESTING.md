@@ -17,221 +17,187 @@ DBTools_SQL uses **MSTest** (`MSTest.TestFramework` 3.7.0) with the **Microsoft 
 
 ### Prerequisites
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- **Unit tests only:** no database required
-- **Integration tests:** Docker (for `docker compose`) or an existing database instance at the expected host/port. Supported providers: SQL Server, PostgreSQL, MySQL, SQLite.
-
-### One-time setup
-
-Copy the example configuration files before running tests. CI performs the same step:
-
-```bash
-cp DBTools/config.json.example DBTools/config.json
-cp DBToolsUnitTest/config.json.example DBToolsUnitTest/config.json
-dotnet restore DBTools.sln
-dotnet build DBTools.sln --configuration Release
-```
-
-The test project copies `DBToolsUnitTest/config.json` (created from `config.json.example` during setup) to the output directory automatically. It points at the integration test database (`testDB` on `127.0.0.1:1433` with user `testUser`).
+- [Docker](https://www.docker.com/) and Docker Compose — **all tests must run inside Docker**
+- No .NET SDK installation required on the host; the `test-runner` container includes it
 
 ---
 
 ## Running tests
 
-### Full suite
+**All tests must be run inside Docker using the `test-runner` service.** Do not run `dotnet test` directly on the host machine.
+
+### Build the test runner
 
 ```bash
-dotnet test DBTools.sln --no-build --configuration Release --verbosity normal
+docker compose build test-runner
 ```
 
-Integration tests require a running database. Start containers first (see [Integration test setup](#integration-test-setup)) or they will be marked **Inconclusive**. The provider is controlled by the `Provider` field in `DBToolsUnitTest/config.json`.
-
-### Unit tests only (no database)
-
-Excludes tests tagged with `[TestCategory("Integration")]`:
+### Full test suite (unit + integration) — SQL Server
 
 ```bash
-dotnet test DBTools.sln \
-  --no-build \
-  --configuration Release \
-  --verbosity normal \
-  --filter "TestCategory!=Integration"
+docker compose up -d sqlserver --wait
+docker compose up sqlserver-setup --abort-on-container-exit --exit-code-from sqlserver-setup
+docker compose run --rm test-runner
 ```
 
-This is the fast path used by CI on every push and pull request.
+### Unit tests only (no database containers needed)
+
+```bash
+docker compose run --rm test-runner -- --filter "TestCategory!=Integration"
+```
+
+Extra arguments after `--` are passed through to `dotnet test`.
 
 ### Integration tests only
 
-Requires a running SQL Server with the integration schema applied:
-
 ```bash
-dotnet test DBTools.sln \
-  --no-build \
-  --configuration Release \
-  --verbosity normal \
-  --filter "TestCategory=Integration"
-```
-
-### Single test project
-
-```bash
-dotnet test DBToolsUnitTest/DBToolsUnitTest.csproj --configuration Release
+docker compose up -d sqlserver --wait
+docker compose up sqlserver-setup --abort-on-container-exit --exit-code-from sqlserver-setup
+docker compose run --rm test-runner -- --filter "TestCategory=Integration"
 ```
 
 ### Filter by class or method name
 
 ```bash
-# Run one test class
-dotnet test DBToolsUnitTest/DBToolsUnitTest.csproj \
-  --filter "FullyQualifiedName~DBToolsUnitTest.Core.SqlClientValidationTests"
-
-# Run one test method
-dotnet test DBToolsUnitTest/DBToolsUnitTest.csproj \
-  --filter "FullyQualifiedName~Constructor_ShouldSetDefaultPort"
+docker compose run --rm test-runner -- --filter "FullyQualifiedName~SqlClientValidationTests"
 ```
 
 ### Code coverage (optional)
 
-`coverlet.collector` is referenced but no coverage thresholds are enforced in CI. To collect coverage locally:
-
 ```bash
-dotnet test DBToolsUnitTest/DBToolsUnitTest.csproj \
-  --configuration Release \
-  --collect:"XPlat Code Coverage" \
-  --results-directory ./TestResults
+docker compose run --rm test-runner -- --collect:"XPlat Code Coverage" --results-directory ./TestResults
 ```
 
-Coverage reports are written under `./TestResults/` as Cobertura XML.
-
-### Visual Studio
-
-Open `DBTools.sln`, build the solution, then use **Test Explorer** to run or debug individual tests and classes.
-
-No watch-mode test script is configured in the repository.
+Coverage reports are written to `./TestResults/` on the host (mounted via volume).
 
 ---
 
-## Integration test setup
+## Testing against different providers
 
-Integration tests connect to database servers using credentials from `DBToolsUnitTest/config.json.example`. The default configuration targets SQL Server at `127.0.0.1:1433` (`testUser` / `Integration!123`, database `testDB`).
+The `test-runner` container uses the `TEST_PROVIDER` environment variable to select which database to connect to. It automatically configures `config.json` with the correct Docker service hostname and port.
+
+| `TEST_PROVIDER` value | Host in container | Port | Database container | Setup container |
+|-----------------------|-------------------|------|--------------------|-----------------|
+| `SqlServer` (default) | `sqlserver` | `1433` | `dbtools-sqlserver` | `dbtools-sqlserver-setup` |
+| `PostgreSQL` | `postgres` | `5432` | `dbtools-postgres` | `dbtools-postgres-setup` |
+| `MySQL` | `mysql` | `3306` | `dbtools-mysql` | `dbtools-mysql-setup` |
+| `SQLite` | — | — | None (file-based) | None |
+
+### SQL Server (default)
+
+```bash
+docker compose build test-runner
+docker compose up -d sqlserver --wait
+docker compose up sqlserver-setup --abort-on-container-exit --exit-code-from sqlserver-setup
+docker compose run --rm test-runner
+```
+
+### PostgreSQL
+
+```bash
+docker compose build test-runner
+docker compose up -d postgres --wait
+docker compose up postgres-setup --abort-on-container-exit --exit-code-from postgres-setup
+docker compose run --rm -e TEST_PROVIDER=PostgreSQL test-runner
+```
+
+### MySQL
+
+```bash
+docker compose build test-runner
+docker compose up -d mysql --wait
+docker compose up mysql-setup --abort-on-container-exit --exit-code-from mysql-setup
+docker compose run --rm -e TEST_PROVIDER=MySQL test-runner
+```
+
+### SQLite (no database container needed)
+
+```bash
+docker compose build test-runner
+docker compose run --rm -e TEST_PROVIDER=SQLite test-runner
+```
+
+### All providers sequentially
+
+```bash
+docker compose build test-runner
+docker compose up -d sqlserver postgres mysql --wait
+docker compose up setup-all --abort-on-container-exit --exit-code-from setup-all
+
+docker compose run --rm -e TEST_PROVIDER=SqlServer test-runner
+docker compose run --rm -e TEST_PROVIDER=PostgreSQL test-runner
+docker compose run --rm -e TEST_PROVIDER=MySQL test-runner
+docker compose run --rm -e TEST_PROVIDER=SQLite test-runner
+```
+
+### How TEST_PROVIDER works
+
+The `test-runner` entrypoint runs `scripts/switch-provider.sh` before `dotnet test`. This script writes the correct `DBToolsUnitTest/config.json` based on the `TEST_PROVIDER` value, using Docker service hostnames (`sqlserver`, `postgres`, `mysql`) instead of `127.0.0.1`. For SQLite, it also creates the `testDB.db` file from `scripts/sqlite-integration-setup.sql`.
+
+---
+
+## Database containers
 
 The `docker-compose.yml` defines containers for **SQL Server**, **PostgreSQL**, and **MySQL**. **SQLite** is file-based and does not require a container.
 
-### Database providers and connection details
+### Connection details (inside Docker network)
 
-| Provider | Host | Port | User | Password | Database | Container |
-|----------|------|------|------|----------|----------|-----------|
-| SQL Server | `127.0.0.1` | `1433` | `testUser` | `Integration!123` | `testDB` | `dbtools-sqlserver` |
-| PostgreSQL | `127.0.0.1` | `5432` | `testUser` | `Integration!123` | `testDB` | `dbtools-postgres` |
-| MySQL | `127.0.0.1` | `3306` | `testUser` | `Integration!123` | `testDB` | `dbtools-mysql` |
-| SQLite | — | — | — | — | `testDB.db` file | Not required |
+| Provider | Host | Port | User | Password | Database |
+|----------|------|------|------|----------|----------|
+| SQL Server | `sqlserver` | `1433` | `testUser` | `Integration!123` | `testDB` |
+| PostgreSQL | `postgres` | `5432` | `testUser` | `Integration!123` | `testDB` |
+| MySQL | `mysql` | `3306` | `testUser` | `Integration!123` | `testDB` |
+| SQLite | — | — | — | — | `testDB.db` file |
 
-### Docker Compose (recommended — matches CI)
+### Connection details (from host for debugging)
 
-#### Start all databases
+| Provider | Host | Port | User | Password | Database |
+|----------|------|------|------|----------|----------|
+| SQL Server | `127.0.0.1` | `1433` | `testUser` | `Integration!123` | `testDB` |
+| PostgreSQL | `127.0.0.1` | `5432` | `testUser` | `Integration!123` | `testDB` |
+| MySQL | `127.0.0.1` | `3306` | `testUser` | `Integration!123` | `testDB` |
 
-From the repository root, start all containers and apply schemas:
-
-```bash
-docker compose up -d sqlserver postgres mysql --wait
-docker compose up sqlserver-setup --abort-on-container-exit --exit-code-from sqlserver-setup
-docker compose up postgres-setup --abort-on-container-exit --exit-code-from postgres-setup
-docker compose up mysql-setup --abort-on-container-exit --exit-code-from mysql-setup
-```
-
-Or use the convenience target that waits for all setups to complete:
+### Start databases only (without running tests)
 
 ```bash
+# All providers
 docker compose up -d sqlserver postgres mysql --wait
 docker compose up setup-all --abort-on-container-exit --exit-code-from setup-all
-```
 
-#### Start a single provider
-
-Only need SQL Server (the default for CI):
-
-```bash
+# Single provider
 docker compose up -d sqlserver --wait
 docker compose up sqlserver-setup --abort-on-container-exit --exit-code-from sqlserver-setup
 ```
 
-Only need PostgreSQL:
-
-```bash
-docker compose up -d postgres --wait
-docker compose up postgres-setup --abort-on-container-exit --exit-code-from postgres-setup
-```
-
-Only need MySQL:
-
-```bash
-docker compose up -d mysql --wait
-docker compose up mysql-setup --abort-on-container-exit --exit-code-from mysql-setup
-```
-
-#### SQLite setup
-
-SQLite uses a local file and does not need a container. Create the database from the schema script:
-
-```bash
-sqlite3 testDB.db < scripts/sqlite-integration-setup.sql
-```
-
-#### Stop and clean up
+### Stop and clean up
 
 ```bash
 docker compose down -v --remove-orphans
-```
-
-The `-v` flag removes named volumes (database data). `--remove-orphans` cleans up any stopped containers. To delete the SQLite database file:
-
-```bash
 rm -f testDB.db
 ```
 
-### Running integration tests by provider
+---
 
-Change the `Provider` field in `DBToolsUnitTest/config.json` to target a specific database, then run integration tests:
+## How the test runner works
 
-```bash
-# Edit config.json "Provider" to "SqlServer", "PostgreSQL", "MySQL", or "SQLite"
-dotnet test DBTools.sln --no-build --configuration Release --filter "TestCategory=Integration"
-```
+The `test-runner` service in `docker-compose.yml`:
 
-The `Provider` value must match the supported provider names (case-sensitive): `SqlServer`, `PostgreSQL`, `MySQL`, `SQLite`.
+1. Builds from `Dockerfile.test` using the `mcr.microsoft.com/dotnet/sdk:8.0` image
+2. Restores NuGet packages and builds `DBTools.sln` in Release configuration
+3. At runtime, executes `scripts/switch-provider.sh` which writes `DBToolsUnitTest/config.json` based on the `TEST_PROVIDER` environment variable
+4. Uses Docker service hostnames (`sqlserver`, `postgres`, `mysql`) so the test container can reach the database containers
+5. Runs `dotnet test DBTools.sln` — any extra arguments after `--` in `docker compose run` are forwarded to `dotnet test`
 
-### Automatic fallbacks (`IntegrationTestBase`)
+### Dockerfiles and scripts
 
-Classes that inherit from `IntegrationTestBase` can call `EnsureContainersReady()` to attempt, in order:
-
-1. Connect to an already-running database at `127.0.0.1:1433`
-2. Start containers via `docker compose`
-3. Start a disposable SQL Server via **Testcontainers**
-
-Most integration test classes today inherit from `TestBase` and call `SkipIfDatabaseUnavailable()` per test method instead.
-
-### Docker image management
-
-Before pulling images, check which are already cached locally:
-
-```bash
-docker images
-```
-
-Only pull images you don't have. To free disk space from unused images:
-
-```bash
-docker image prune -a
-```
-
-Common images for this project:
-
-| Image | Purpose |
-|-------|---------|
-| `mcr.microsoft.com/mssql/server:2022-latest` | SQL Server |
-| `postgres:16-alpine` | PostgreSQL |
-| `mysql:8.0` | MySQL |
-| `alpine:3.19` | Setup coordination (`setup-all` service) |
+| File | Purpose |
+|------|---------|
+| `Dockerfile.test` | Multi-stage build: restores, builds, and prepares the test runner |
+| `scripts/switch-provider.sh` | Writes `config.json` with the correct host/port for the selected provider |
+| `scripts/sqlserver-integration-setup.sql` | Creates tables and seed data for SQL Server |
+| `scripts/postgres-integration-setup.sql` | Creates tables and seed data for PostgreSQL |
+| `scripts/mysql-integration-setup.sql` | Creates tables and seed data for MySQL |
+| `scripts/sqlite-integration-setup.sql` | Creates tables and seed data for SQLite |
 
 ---
 
@@ -262,7 +228,7 @@ Common images for this project:
 | Type | Database required | Attribute | Base class |
 |------|-------------------|-----------|------------|
 | Unit | No | *(none)* | `TestBase` |
-| Integration | Yes — live SQL Server | `[TestCategory("Integration")]` on the test class | `TestBase` or `IntegrationTestBase` |
+| Integration | Yes — live database | `[TestCategory("Integration")]` on the test class | `TestBase` or `IntegrationTestBase` |
 
 Place offline validation and query-building tests anywhere under `DBToolsUnitTest/` without a category attribute. Tests that execute real SQL against `testDB` must carry `[TestCategory("Integration")]` so CI can filter them.
 
@@ -344,22 +310,47 @@ Tests run in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) on push a
 
 | Job | Trigger | Database | Command |
 |-----|---------|----------|---------|
-| **Unit Tests** | Every push / PR | None | `dotnet test DBTools.sln --no-build --configuration Release --filter "TestCategory!=Integration"` |
-| **Integration Tests** | Every push / PR | Docker Compose (SQL Server) | `docker compose up -d sqlserver --wait` → setup → `--filter "TestCategory=Integration"` |
-| **All Tests (Full)** | Push to `main` or version tags (`v*`) | Docker Compose (SQL Server) | `dotnet test DBTools.sln --no-build --configuration Release` (no filter) |
-
-The CI pipeline currently only starts SQL Server for integration tests. To test against all providers locally, start PostgreSQL and MySQL containers as described in [Docker Compose (recommended)](#docker-compose-recommended--matches-ci) and change the `Provider` in `config.json`.
+| **Unit Tests** | Every push / PR | None | `docker compose run --rm test-runner -- --filter "TestCategory!=Integration"` |
+| **Integration Tests** | Every push / PR | Docker Compose (SQL Server) | `docker compose run --rm test-runner` (default provider) |
+| **All Tests (Full)** | Push to `main` or version tags (`v*`) | Docker Compose (SQL Server) | `docker compose run --rm test-runner` (no filter) |
 
 Each job:
 
 1. Checks out the repository
-2. Installs .NET 8.x
-3. Copies `config.json.example` files for `DBTools` and `DBToolsUnitTest`
-4. Restores and builds `DBTools.sln` in Release configuration
+2. Builds the `test-runner` Docker image
+3. Starts the required database containers
+4. Runs tests inside the `test-runner` container
+5. Tears down containers
 
 The **Unit Tests** job also verifies deterministic build output by comparing SHA-256 hashes of `DBTools.dll` across two consecutive builds.
 
 Release builds ([`.github/workflows/release.yml`](../.github/workflows/release.yml)) run unit tests only (`TestCategory!=Integration`) before packing the NuGet package.
+
+---
+
+## Docker image management
+
+Before pulling images, check which are already cached locally:
+
+```bash
+docker images
+```
+
+Only pull images you don't have. To free disk space from unused images:
+
+```bash
+docker image prune -a
+```
+
+Common images for this project:
+
+| Image | Purpose |
+|-------|---------|
+| `mcr.microsoft.com/dotnet/sdk:8.0` | .NET SDK (test-runner build) |
+| `mcr.microsoft.com/mssql/server:2022-latest` | SQL Server |
+| `postgres:16-alpine` | PostgreSQL |
+| `mysql:8.0` | MySQL |
+| `alpine:3.19` | Setup coordination (`setup-all` service) |
 
 ---
 
