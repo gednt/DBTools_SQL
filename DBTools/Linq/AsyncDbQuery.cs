@@ -18,7 +18,7 @@ namespace DBTools.Linq
     /// </summary>
     /// <typeparam name="TModel">The model type</typeparam>
     public class AsyncDbQuery<TModel> : IQueryable<TModel>, IOrderedQueryable<TModel>
-        where TModel : class, new()
+        where TModel : class
     {
         private readonly AsyncDbQueryProvider<TModel> _provider;
         private readonly Expression _expression;

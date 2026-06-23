@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -40,6 +41,7 @@ namespace DBTools.Mapping
         internal string PrimaryKeyOverride { get; private set; }
         internal bool? PrimaryKeyAutoIncrementOverride { get; private set; }
         internal List<string> QueryFilterOverrides { get; } = new List<string>();
+        internal Func<IDataRecord, object> ModelFactoryOverride { get; private set; }
 
         /// <summary>
         /// Sets the table name for this entity.
@@ -108,6 +110,22 @@ namespace DBTools.Mapping
         public EntityBuilder<TModel> HasQueryFilter(string condition)
         {
             QueryFilterOverrides.Add(condition);
+            return this;
+        }
+
+        /// <summary>
+        /// Registers a factory used to materialize this entity from an <see cref="IDataRecord"/>.
+        /// When set, <see cref="DBTools.Linq.AsyncDbQueryProvider{TModel}"/> and
+        /// <see cref="DBTools.Controllers.AsyncLinqHelper{TModel}"/> call this delegate
+        /// per row instead of <c>new TModel()</c> + property setters. Use this to hydrate
+        /// entities whose parameterless constructor is <c>private</c> or that require
+        /// factory-only construction (e.g. <c>MyEntity.Hydrate(record)</c>).
+        /// </summary>
+        /// <param name="factory">Delegate that builds a <typeparamref name="TModel"/> from a single record.</param>
+        public EntityBuilder<TModel> HasModelFactory(Func<IDataRecord, TModel> factory)
+        {
+            if (factory == null) throw new ArgumentNullException(nameof(factory));
+            ModelFactoryOverride = record => factory(record);
             return this;
         }
 
@@ -290,6 +308,14 @@ namespace DBTools.Mapping
                     prop.IsPrimaryKey = true;
                     mapping.PrimaryKeyColumn = prop.ColumnName;
                 }
+                // Read converter from HasConversion(...) flows into PropertyMapping.ValueConverter
+                // so AsyncDbQueryProvider / AsyncLinqHelper can use it during hydration.
+                if (pb.ReadConverter != null)
+                    prop.ValueConverter = pb.ReadConverter;
+                // Write converter from HasConversion(...) flows into PropertyMapping.WriteConverter
+                // so AsyncLinqHelper.ExtractFieldsAndValues applies it on INSERT/UPDATE.
+                if (pb.WriteConverter != null)
+                    prop.WriteConverter = pb.WriteConverter;
             }
 
             // Apply query filter overrides
@@ -298,6 +324,10 @@ namespace DBTools.Mapping
                 if (!mapping.QueryFilters.Contains(filter))
                     mapping.QueryFilters.Add(filter);
             }
+
+            // Apply ModelFactory override (HasModelFactory on EntityBuilder).
+            if (builder.ModelFactoryOverride != null)
+                mapping.ModelFactory = builder.ModelFactoryOverride;
         }
     }
 }

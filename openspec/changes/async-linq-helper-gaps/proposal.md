@@ -8,12 +8,14 @@ The `AsyncLinqHelper<T>` library lacks Skip/Take pagination, OrderBy sorting, an
 - **New: Async deferred execution for AsyncLinqHelper** — `WhereAsync()` currently executes immediately. Add an `AsAsyncQueryable()` pattern that returns a deferred `IQueryable<T>` with full Skip/Take/OrderBy support
 - **New: Public BeginTransactionAsync on AsyncLinqHelper** — Expose the existing `IDbTransaction`/`DbToolsTransaction` infrastructure that already exists but is not accessible from `AsyncLinqHelper`
 - **New: SQLite isolation level mapping** — `IsolationLevel.Serializable` should map to `BEGIN IMMEDIATE` for proper locking behavior
+- **New: Custom mapper extensibility** — Add `PropertyMapping.ValueConverter` and `EntityMapping.ModelFactory` so consumers can hydrate entities with private constructors and value-object properties through `AsyncDbQueryProvider` / `AsyncLinqHelper`. Drop the `new()` constraint on `AsyncDbQueryProvider<TModel>` and `AsyncLinqHelper<TModel>` — construction goes through `ModelFactory` (when configured) instead of `new TModel()`.
 
 ## Capabilities
 
 ### New Capabilities
 - `async-linq-deferred`: Async deferred execution via IQueryable<T> pattern with full LINQ chain support (Where, OrderBy, Skip, Take)
 - `async-linq-transactions`: Public transaction API on AsyncLinqHelper with isolation level support
+- `custom-mapper-extensibility`: Per-property `ValueConverter` and per-entity `ModelFactory` for hydration of entities that cannot use `new TModel()`. Includes `DataRowRecordAdapter` so `ModelFactory` can consume a `DataRow` via `IDataRecord`.
 
 ### Modified Capabilities
 - `linq-paging-multi-provider`: `DbExpressionTranslator.BuildSql()` shall use `IDbProvider.BuildPagingClause()` instead of hardcoding SQL Server paging syntax
