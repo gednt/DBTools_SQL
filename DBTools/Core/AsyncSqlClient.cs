@@ -31,6 +31,7 @@ namespace DBTools.Core
         public IDbConfiguration Configuration { get; }
         public ISqlQueryBuilder QueryBuilderInstance => _queryBuilder;
         public string ConnectionString { get; }
+        public IDbProvider Provider => _provider;
         public string Error => _error;
 
         /// <summary>
@@ -108,9 +109,30 @@ namespace DBTools.Core
         /// </summary>
         public async Task<DbToolsTransaction> BeginTransactionAsync(CancellationToken ct = default)
         {
+            return await BeginTransactionAsync(IsolationLevel.ReadCommitted, ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Begins a new database transaction asynchronously with the specified isolation level.
+        /// </summary>
+        public async Task<DbToolsTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken ct = default)
+        {
             var connection = _provider.CreateConnection(ConnectionString);
             await connection.OpenAsync(ct).ConfigureAwait(false);
-            var tx = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+            System.Data.Common.DbTransaction tx;
+            if (isolationLevel == IsolationLevel.Serializable && _provider is Providers.SqliteProvider)
+            {
+                // SQLite: IsolationLevel.Serializable maps to BEGIN IMMEDIATE via
+                // Microsoft.Data.Sqlite (non-deferred transaction). We must use
+                // BeginTransactionAsync with the isolation level so the provider
+                // issues the correct BEGIN IMMEDIATE rather than a deferred BEGIN.
+                tx = await connection.BeginTransactionAsync(isolationLevel, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                tx = await connection.BeginTransactionAsync(isolationLevel, ct).ConfigureAwait(false);
+            }
             return new DbToolsTransaction(connection, tx);
         }
 

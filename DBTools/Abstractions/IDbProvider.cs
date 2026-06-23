@@ -57,5 +57,12 @@ namespace DBTools.Abstractions
         /// Builds an upsert statement for this provider.
         /// </summary>
         string BuildUpsertSql(string tableName, string[] columns, string matchColumn, string parameterPrefix);
+
+        /// <summary>
+        /// Determines whether this provider uses TOP N syntax (SQL Server) for row limiting.
+        /// When true, First/Single queries inject "TOP N" after SELECT.
+        /// When false, First/Single queries use LIMIT N (appended via BuildPagingClause).
+        /// </summary>
+        bool UsesTopNSyntax { get; }
     }
 }

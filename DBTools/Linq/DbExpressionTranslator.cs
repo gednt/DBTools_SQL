@@ -4,15 +4,16 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
+using DBTools.Abstractions;
 
 namespace DBTools.Linq
 {
     /// <summary>
     /// Represents a JOIN clause in the translated SQL query.
     /// </summary>
-    internal class JoinClause
+    public class JoinClause
     {
-        public string JoinType { get; set; } // "INNER JOIN" or "LEFT JOIN"
+        public string JoinType { get; set; }
         public string RightTable { get; set; }
         public string RightAlias { get; set; }
         public string LeftKey { get; set; }
@@ -23,7 +24,7 @@ namespace DBTools.Linq
     /// <summary>
     /// Result of translating a LINQ expression tree into SQL components.
     /// </summary>
-    internal class TranslationResult
+    public class TranslationResult
     {
         public string SelectClause { get; set; } = "*";
         public string FromClause { get; set; }
@@ -45,19 +46,21 @@ namespace DBTools.Linq
     /// Translates LINQ expression trees into SQL query components.
     /// Walks the expression tree and accumulates SELECT, FROM, WHERE, ORDER BY, SKIP/TAKE clauses.
     /// </summary>
-    internal class DbExpressionTranslator : ExpressionVisitor
+    public class DbExpressionTranslator : ExpressionVisitor
     {
         private readonly string _tableName;
         private readonly string _tableAlias;
         private readonly TranslationResult _result;
+        private readonly IDbProvider _provider;
         private int _paramIndex;
         private string _rightAlias;
 
-        public DbExpressionTranslator(string tableName, string tableAlias = "t0", string rightAlias = null)
+        public DbExpressionTranslator(string tableName, string tableAlias = "t0", string rightAlias = null, IDbProvider provider = null)
         {
             _tableName = tableName;
             _tableAlias = tableAlias;
             _rightAlias = rightAlias;
+            _provider = provider;
             _result = new TranslationResult
             {
                 FromClause = $"{tableName} {tableAlias}"
@@ -465,48 +468,61 @@ namespace DBTools.Linq
             {
                 if (string.IsNullOrEmpty(result.OrderByClause))
                     result.OrderByClause = $"{_tableAlias}.{GetPrimaryKeyOrFirstColumn()} ASC";
-                sql.Append($" ORDER BY {result.OrderByClause}");
-            }
 
-            // OFFSET / FETCH (SQL Server paging)
-            if (result.SkipCount.HasValue || result.TakeCount.HasValue)
-            {
-                sql.Append($" OFFSET {result.SkipCount ?? 0} ROWS");
-
-                if (result.TakeCount.HasValue)
+                if (_provider != null && (result.SkipCount.HasValue || result.TakeCount.HasValue))
                 {
-                    if (result.IsSingleQuery || result.IsSingleOrDefaultQuery)
-                        sql.Append(" FETCH NEXT 2 ROWS ONLY"); // Fetch 2 to validate single
-                    else
-                        sql.Append($" FETCH NEXT {result.TakeCount.Value} ROWS ONLY");
+                    sql.Append(_provider.BuildPagingClause(result.SkipCount, result.TakeCount, result.OrderByClause));
                 }
-            }
-            else if (result.IsFirstQuery || result.IsFirstOrDefaultQuery)
-            {
-                // Use TOP 1 for First/FirstOrDefault when no paging
-                if (result.SkipCount.HasValue == false)
+                else
                 {
-                    // Rebuild with TOP 1
-                    string currentSql = sql.ToString();
-                    if (currentSql.StartsWith("SELECT "))
+                    sql.Append($" ORDER BY {result.OrderByClause}");
+
+                    if (result.SkipCount.HasValue || result.TakeCount.HasValue)
                     {
-                        sql.Clear();
-                        sql.Append("SELECT TOP 1 ");
-                        sql.Append(currentSql.Substring(7)); // Skip "SELECT "
+                        sql.Append($" OFFSET {result.SkipCount ?? 0} ROWS");
+
+                        if (result.TakeCount.HasValue)
+                        {
+                            if (result.IsSingleQuery || result.IsSingleOrDefaultQuery)
+                                sql.Append(" FETCH NEXT 2 ROWS ONLY");
+                            else
+                                sql.Append($" FETCH NEXT {result.TakeCount.Value} ROWS ONLY");
+                        }
                     }
                 }
             }
-            else if (result.IsSingleQuery || result.IsSingleOrDefaultQuery)
+            else if (result.IsFirstQuery || result.IsFirstOrDefaultQuery || result.IsSingleQuery || result.IsSingleOrDefaultQuery)
             {
-                // Use TOP 2 for Single/SingleOrDefault when no paging (fetch 2 to detect more than one element)
+                int limitCount = (result.IsSingleQuery || result.IsSingleOrDefaultQuery) ? 2 : 1;
+
                 if (result.SkipCount.HasValue == false)
                 {
-                    string currentSql = sql.ToString();
-                    if (currentSql.StartsWith("SELECT "))
+                    if (_provider != null && _provider.UsesTopNSyntax)
                     {
-                        sql.Clear();
-                        sql.Append("SELECT TOP 2 ");
-                        sql.Append(currentSql.Substring(7)); // Skip "SELECT "
+                        string currentSql = sql.ToString();
+                        if (currentSql.StartsWith("SELECT "))
+                        {
+                            sql.Clear();
+                            sql.Append($"SELECT TOP {limitCount} ");
+                            sql.Append(currentSql.Substring(7));
+                        }
+                    }
+                    else if (_provider != null)
+                    {
+                        if (string.IsNullOrEmpty(result.OrderByClause))
+                            result.OrderByClause = $"{_tableAlias}.{GetPrimaryKeyOrFirstColumn()} ASC";
+
+                        sql.Append(_provider.BuildPagingClause(null, limitCount, result.OrderByClause));
+                    }
+                    else
+                    {
+                        string currentSql = sql.ToString();
+                        if (currentSql.StartsWith("SELECT "))
+                        {
+                            sql.Clear();
+                            sql.Append($"SELECT TOP {limitCount} ");
+                            sql.Append(currentSql.Substring(7));
+                        }
                     }
                 }
             }

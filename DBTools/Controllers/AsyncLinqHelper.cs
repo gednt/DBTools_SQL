@@ -1,5 +1,6 @@
 using DBTools.Abstractions;
 using DBTools.Core;
+using DBTools.Linq;
 using DBTools.Mapping;
 using System;
 using System.Collections.Generic;
@@ -53,6 +54,36 @@ namespace DBTools.Controllers
         /// Gets the resolved primary key column name.
         /// </summary>
         public string PrimaryKeyName => _primaryKeyName;
+
+        /// <summary>
+        /// Returns a deferred IQueryable{T} query that supports async execution.
+        /// Use Skip(), Take(), OrderBy(), Where() etc. and finish with ToListAsync() or enumeration.
+        /// </summary>
+        public IQueryable<TModel> AsAsyncQueryable()
+        {
+            var provider = new AsyncDbQueryProvider<TModel>(
+                _client,
+                _client.Provider,
+                _tableName,
+                _primaryKeyName);
+            return new AsyncDbQuery<TModel>(provider, _tableName);
+        }
+
+        /// <summary>
+        /// Begins a database transaction asynchronously with default isolation level.
+        /// </summary>
+        public Task<Abstractions.IDbTransaction> BeginTransactionAsync(CancellationToken ct = default)
+        {
+            return BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+        }
+
+        /// <summary>
+        /// Begins a database transaction asynchronously with the specified isolation level.
+        /// </summary>
+        public async Task<Abstractions.IDbTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken ct = default)
+        {
+            return await _client.BeginTransactionAsync(isolationLevel, ct).ConfigureAwait(false);
+        }
 
         #region Async CRUD Operations
 
@@ -405,7 +436,11 @@ namespace DBTools.Controllers
                                 property.SetValue(model, value);
                             }
                         }
-                        catch { /* Skip conversion errors */ }
+                        catch (Exception)
+                        {
+                            System.Diagnostics.Debug.WriteLine(
+                                $"MapDataTableToModels: Failed to convert column '{column.ColumnName}' for property '{property.Name}' on type {typeof(TModel).Name}");
+                        }
                     }
                 }
                 models.Add(model);

@@ -64,10 +64,15 @@ namespace DBTools.Providers
                 sb.Append($" ORDER BY {orderByClause}");
 
             if (take.HasValue)
+            {
                 sb.Append($" LIMIT {take.Value}");
-
-            if (skip.HasValue && skip.Value > 0)
-                sb.Append($" OFFSET {skip.Value}");
+                if (skip.HasValue && skip.Value > 0)
+                    sb.Append($" OFFSET {skip.Value}");
+            }
+            else if (skip.HasValue && skip.Value > 0)
+            {
+                sb.Append($" LIMIT 9223372036854775807 OFFSET {skip.Value}");
+            }
 
             return sb.ToString();
         }
@@ -76,6 +81,8 @@ namespace DBTools.Providers
         {
             return "SELECT last_insert_rowid()";
         }
+
+        public bool UsesTopNSyntax => false;
 
         public string BuildUpsertSql(string tableName, string[] columns, string matchColumn, string parameterPrefix)
         {

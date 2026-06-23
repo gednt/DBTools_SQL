@@ -90,6 +90,8 @@ namespace DBTools.Providers
             return "SELECT LAST_INSERT_ID()";
         }
 
+        public bool UsesTopNSyntax => false;
+
         public string BuildUpsertSql(string tableName, string[] columns, string matchColumn, string parameterPrefix)
         {
             var insertCols = new System.Text.StringBuilder();

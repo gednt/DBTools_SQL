@@ -78,6 +78,8 @@ namespace DBTools.Providers
             return "RETURNING id"; // Appended to INSERT statement
         }
 
+        public bool UsesTopNSyntax => false;
+
         public string BuildUpsertSql(string tableName, string[] columns, string matchColumn, string parameterPrefix)
         {
             var insertCols = new System.Text.StringBuilder();

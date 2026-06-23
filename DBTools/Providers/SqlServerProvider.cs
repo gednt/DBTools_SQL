@@ -67,6 +67,8 @@ namespace DBTools.Providers
             return "SELECT SCOPE_IDENTITY()";
         }
 
+        public bool UsesTopNSyntax => true;
+
         public string BuildUpsertSql(string tableName, string[] columns, string matchColumn, string parameterPrefix)
         {
             var setClause = new System.Text.StringBuilder();
