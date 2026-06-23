@@ -12,7 +12,7 @@ using DBTools.Mapping;
 
 namespace DBTools.Linq
 {
-    public class AsyncDbQueryProvider<TModel> : IQueryProvider where TModel : class, new()
+    public class AsyncDbQueryProvider<TModel> : IQueryProvider where TModel : class
     {
         private readonly AsyncSqlClient _client;
         private readonly IDbProvider _dbProvider;
@@ -155,23 +155,60 @@ namespace DBTools.Linq
             var models = new List<TModel>();
             if (dt == null || dt.Rows.Count == 0) return models;
 
+            // When a ModelFactory is configured on the entity mapping, hand each row
+            // to it (via IDataRecord). This is the supported path for entities with
+            // private constructors or factory-only construction.
+            if (_mapping.ModelFactory != null)
+            {
+                foreach (DataRow row in dt.Rows)
+                {
+                    var record = new DataRowRecordAdapter(row);
+                    var created = _mapping.ModelFactory(record);
+                    if (created is TModel typed)
+                        models.Add(typed);
+                    else
+                        models.Add((TModel)created);
+                }
+                return models;
+            }
+
             var columnLookup = _mapping.Properties
                 .Where(p => !p.IsNotMapped)
-                .ToDictionary(p => p.ColumnName, p => p.PropertyInfo, StringComparer.OrdinalIgnoreCase);
+                .ToDictionary(p => p.ColumnName, p => p, StringComparer.OrdinalIgnoreCase);
 
             foreach (DataRow row in dt.Rows)
             {
-                var model = new TModel();
+                TModel model;
+                try
+                {
+                    // Activator.CreateInstance is used (instead of new TModel()) so the
+                    // class does not need the `new()` constraint. This is the fallback
+                    // path — preferred path is _mapping.ModelFactory, configured via
+                    // EntityBuilder<TModel>.HasModelFactory(...).
+                    model = (TModel)Activator.CreateInstance(typeof(TModel));
+                }
+                catch (MissingMethodException ex)
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot hydrate '{typeof(TModel).FullName}': no public parameterless constructor and no EntityMapping.ModelFactory is configured. " +
+                        "Register an IEntityConfiguration<TModel> with HasModelFactory(...) or expose a public parameterless constructor.",
+                        ex);
+                }
                 foreach (DataColumn column in dt.Columns)
                 {
-                    if (columnLookup.TryGetValue(column.ColumnName, out var property))
+                    if (columnLookup.TryGetValue(column.ColumnName, out var propMapping))
                     {
                         try
                         {
                             var value = row[column.ColumnName];
                             if (value != null && value != DBNull.Value)
                             {
-                                if (property.PropertyType != value.GetType())
+                                var property = propMapping.PropertyInfo;
+                                if (propMapping.ValueConverter != null)
+                                {
+                                    value = propMapping.ValueConverter(value);
+                                }
+                                else if (property.PropertyType != value.GetType())
                                 {
                                     if (property.PropertyType.IsGenericType &&
                                         property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
@@ -190,7 +227,7 @@ namespace DBTools.Linq
                         catch (Exception)
                         {
                             System.Diagnostics.Debug.WriteLine(
-                                $"MapDataViewToModels: Failed to convert column '{column.ColumnName}' for property '{property.Name}' on type {typeof(TModel).Name}");
+                                $"MapDataViewToModels: Failed to convert column '{column.ColumnName}' for property '{propMapping.PropertyName}' on type {typeof(TModel).Name}");
                         }
                     }
                 }

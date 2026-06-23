@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Reflection;
 
 namespace DBTools.Mapping
@@ -44,6 +45,16 @@ namespace DBTools.Mapping
         /// Global query filters applied to all queries on this entity.
         /// </summary>
         public List<string> QueryFilters { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Optional factory used to materialize entities from a raw <see cref="IDataRecord"/>.
+        /// When set, <see cref="DBTools.Linq.AsyncDbQueryProvider{TModel}"/> and
+        /// <see cref="DBTools.Controllers.AsyncLinqHelper{TModel}"/> call this delegate
+        /// per row instead of <c>new TModel()</c> + property setters. This enables hydration
+        /// of entities that have a private parameterless constructor or use factory-only
+        /// construction. The returned object is added to the result list.
+        /// </summary>
+        public Func<IDataRecord, object> ModelFactory { get; set; }
     }
 
     /// <summary>
@@ -115,5 +126,32 @@ namespace DBTools.Mapping
         /// Default value SQL expression.
         /// </summary>
         public string DefaultValueSql { get; set; }
+
+        /// <summary>
+        /// Optional converter that maps a raw database column value to this property's CLR
+        /// type during hydration. When set, this delegate is invoked by
+        /// <see cref="DBTools.Linq.AsyncDbQueryProvider{TModel}"/> and
+        /// <see cref="DBTools.Controllers.AsyncLinqHelper{TModel}"/> instead of
+        /// <see cref="Convert.ChangeType(object, Type)"/>. Use this for sealed value
+        /// objects (e.g. <c>string</c> → <c>Currency</c>), enums, or any CLR type that has
+        /// no default conversion path from the underlying column type.
+        /// The delegate receives the raw column value (never null / DBNull — those bypass
+        /// the converter) and returns the property value to set.
+        /// </summary>
+        public Func<object, object> ValueConverter { get; set; }
+
+        /// <summary>
+        /// Optional converter that maps the property's CLR value to the underlying
+        /// database column value during INSERT / UPDATE. When set, this delegate is
+        /// invoked by <see cref="DBTools.Controllers.AsyncLinqHelper{TModel}.InsertAsync"/>,
+        /// <see cref="DBTools.Controllers.AsyncLinqHelper{TModel}.UpdateAsync"/>, and
+        /// <see cref="DBTools.Controllers.AsyncLinqHelper{TModel}.SaveChangesAsync"/>
+        /// instead of using the raw property value. Use this for sealed value objects
+        /// (e.g. <c>Currency</c> → <c>string</c> code), enums, or any transformation
+        /// needed before sending the value to the database.
+        /// The delegate receives the property value (never null / DBNull — those bypass
+        /// the converter) and returns the value to bind to the parameter.
+        /// </summary>
+        public Func<object, object> WriteConverter { get; set; }
     }
 }
